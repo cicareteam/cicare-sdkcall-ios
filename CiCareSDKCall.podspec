@@ -8,14 +8,14 @@ Pod::Spec.new do |spec|
   spec.description  = <<-DESC
     CiCareSDKCall is a SDK for calling app to app or app to phone via webrtc.
   DESC
-  spec.homepage     = "https://github.com/cicareteam/c-icare-sdk-call-ios"
-  spec.license      = { :type => "MIT", :file => "LICENSE" }
+  spec.homepage     = "https://github.com/cicareteam/cicare-sdkcall-ios"
+  spec.license      = { :type => "Commercial", :file => "LICENSE" }
   spec.author       = { "C-icare Team" => "dev@c-icare.cc" }
   spec.platform     = :ios, "12.0"
   spec.swift_version = ['5.9', '5.10']
 
   # Source code SDK
-  spec.source       = { :git => "https://github.com/cicareteam/c-icare-sdk-call-ios.git", :tag => spec.version.to_s }
+  spec.source       = { :git => "https://github.com/cicareteam/cicare-sdkcall-ios.git", :tag => spec.version.to_s }
 
   # Jika menggunakan source code
   spec.source_files = "Sources/CicareSdkCall/**/*.{swift,h,m}"
