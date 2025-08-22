@@ -3,7 +3,7 @@
 
 Pod::Spec.new do |spec|
   spec.name         = "CiCareSDKCall"
-  spec.version      = "1.0.2"
+  spec.version      = "1.2.0-alpha.2"
   spec.summary      = "SDK for calling app to app webrtc."
   spec.description  = <<-DESC
     CiCareSDKCall is a SDK for calling app to app or app to phone via webrtc.
