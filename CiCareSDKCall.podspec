@@ -2,7 +2,7 @@
 
 
 Pod::Spec.new do |spec|
-  spec.name         = "C-iCare-SDK-Call"
+  spec.name         = "CiCareSDKCallIOS"
   spec.version      = "1.2.0-alpha.2"
   spec.summary      = "SDK for calling app to app webrtc."
   spec.description  = <<-DESC
