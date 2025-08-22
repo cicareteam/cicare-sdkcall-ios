@@ -1,0 +1,11 @@
+xcassets:
+   inputs:
+     - Media.xcassets
+   outputs:
+     - templateName: swift5
+       params:
+         publicAccess: true
+         forceProvidesNamespaces: true
+         enumName: AsssetKitImageProvider
+       output: Sources/CicareSdkCall/ui/XCAssets.swift
+
