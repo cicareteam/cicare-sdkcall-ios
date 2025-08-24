@@ -41,7 +41,9 @@ public class CallScreenViewController: UIViewController {
     
     public override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .white
+        let gradientBackground = MultiLayerGradientView(frame: view.bounds)
+        gradientBackground.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.insertSubview(gradientBackground, at: 0)
         
         monitor.pathUpdateHandler = { path in
             if path.status != .satisfied {
