@@ -69,6 +69,10 @@ class SocketManagerSignaling: NSObject {
     func initCall() {
         self.send(event: "INIT_CALL", data: [:])
     }
+    
+    func ringingCall() {
+        self.send(event: "RINGING_CALL", data: [:])
+    }
 
     private func registerHandlers() {
         socket?.on(clientEvent: .error) { error, arg  in print("socket error: \(error) \(arg)")

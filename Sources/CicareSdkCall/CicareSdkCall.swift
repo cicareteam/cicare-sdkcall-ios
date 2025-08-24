@@ -96,7 +96,14 @@ public class CicareSdkCall {
         onMessageClicked: (() -> Void)? = nil
     ) {
         let merged = self.metaData.merging(metaData ?? self.metaData) { _, new in new }
-                CallService.sharedInstance.reportIncomingCall(callerName: callerName, avatarUrl: callerAvatar, metaData: merged)
+                CallService.sharedInstance.reportIncomingCall(
+                    callerName: callerName,
+                    avatarUrl: callerAvatar,
+                    metaData: merged,
+                    server: server,
+                    tokenCall: token,
+                    isFromPhone: isFormPhone
+                )
         //self.showCallScreen(calleeName: callerName, callStatus: CallStatus.incoming.rawValue, avatarUrl: callerAvatar, metaData: merged)
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import CallKit
 import AVFoundation
 import PushKit
@@ -39,6 +40,8 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     var callController : CXCallController?
     var currentCall : UUID?
     let callObserver = CXCallObserver()
+    
+    var callStatus : CallStatus = .connecting
     
     //private var voipRegistry: PKPushRegistry?
     
@@ -85,7 +88,14 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     // MARK: - Laporan Panggilan Masuk
-    public func reportIncomingCall(callerName: String, avatarUrl: String, metaData: [String:String]) {
+    public func reportIncomingCall(
+        callerName: String,
+        avatarUrl: String,
+        metaData: [String:String],
+        server: String,
+        tokenCall: String,
+        isFromPhone: Bool,
+    ) {
         let incomingUUID = UUID()
         CallState.shared.currentCallUUID = incomingUUID
         
@@ -100,7 +110,17 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             } else {
                 self?.currentCall = incomingUUID
                 self?.postCallStatus(.incoming)
-                self?.postCallProfile(callerName, avatarUrl, metaData)
+                self?.callStatus = .incoming
+                NotificationManager.shared.showIncomingCallNotification(caller: callerName, uuid: incomingUUID)
+                if let url = URL(string: server) {
+                    SocketManagerSignaling.shared.connect(wssUrl: url, token: tokenCall) { status in
+                        if status == .connected {
+                            SocketManagerSignaling.shared.ringingCall()
+                        } else {
+                            self?.endCall()
+                        }
+                    }
+                }
             }
         }
     }
@@ -318,7 +338,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     // If provider:executeTransaction:error: returned NO, each perform*CallAction method is called sequentially for each action in the transaction
     func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
-        
         //todo: configure audio session
         //todo: start network call
         provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: nil)
@@ -336,15 +355,20 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         //todo: configure audio session
         //todo: answer network call
         delegate?.callDidAnswer()
-        print("Something else answered")
+        DispatchQueue.main.async {
+            self.showCallScreen()
+        }
         self.postCallStatus(.connected)
         action.fulfill()
     }
     
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
-        //todo: configure audio session
-        //todo: answer network call
-        print("currentCall: \(String(describing: currentCall))")
+        
+        if (callStatus == .incoming) {
+            SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
+        } else if (callStatus == .connecting || callStatus == .calling) {
+            SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
+        }
         currentCall = nil
         SocketManagerSignaling.shared.disconnect()
         delegate?.callDidEnd()
@@ -397,6 +421,35 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
          */
         print("🔇 Audio session deactivated")
     }
+    
+    private func topViewController() -> UIViewController? {
+        if #available(iOS 13.0, *) {
+            // iOS 13 ke atas pakai connectedScenes
+            if let scene = UIApplication.shared.connectedScenes
+                .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                return scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
+            }
+        } else {
+            // iOS 12 ke bawah pakai keyWindow
+            return UIApplication.shared.keyWindow?.rootViewController
+        }
+        return nil
+    }
+
+    private func showCallScreen() {
+        let callVC = CallScreenViewController()
+        callVC.modalPresentationStyle = .fullScreen
+
+        if let rootVC = topViewController() {
+            // Kalau rootVC berupa UINavigationController, ambil top-nya
+            if let nav = rootVC as? UINavigationController {
+                nav.pushViewController(callVC, animated: true)
+            } else {
+                rootVC.present(callVC, animated: true, completion: nil)
+            }
+        }
+    }
+
     
 }
 
