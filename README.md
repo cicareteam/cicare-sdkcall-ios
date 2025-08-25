@@ -2,6 +2,8 @@
 
 This SDK allows you to integrate **outgoing and incoming call features** into your iOS app using **CiCare SDK**.
 
+---
+
 ## 📦 Installation
 
 Add the CocoaPods source in your `Podfile`:
@@ -11,7 +13,7 @@ source 'https://github.com/CocoaPods/Specs.git'
 
 target 'YourAppTarget' do
   use_frameworks!
-  pod 'CiCareSDKCallIOS', '1.2.0-alpha.4'
+  pod 'CiCareSDKCallIOS', '1.2.0-rc.1'
 end
 ````
 
@@ -20,6 +22,49 @@ Then run:
 ```bash
 pod install
 ```
+
+---
+
+## ⚙ iOS Setup Requirements
+
+### 1. Enable Push Notification & VOIP
+
+1. Open your Xcode project settings → **Signing & Capabilities**.
+2. Add the following capabilities:
+
+   * **Push Notifications**
+   * **Background Modes** → Check:
+
+     * `Voice over IP`
+     * `Background fetch`
+     * `Remote notifications`
+
+---
+
+### 2. Add Permissions in `Info.plist`
+
+Add these keys for proper permission descriptions:
+
+```xml
+<key>UIBackgroundModes</key>
+<array>
+    <string>voip</string>
+    <string>fetch</string>
+    <string>remote-notification</string>
+</array>
+<key>NSUserNotificationUsageDescription</key>
+<string>This app uses notifications to alert you for incoming calls.</string>
+<key>NSMicrophoneUsageDescription</key>
+<string>This app requires microphone access for voice calls.</string>
+```
+
+---
+
+### 3. APNs Configuration
+
+* Configure your app in the **Apple Developer Console**.
+* Enable Push Notifications and generate the **VoIP Services Certificate**.
+* Use the generated credentials for your server to send VoIP push notifications.
 
 ---
 
@@ -61,7 +106,7 @@ func makeCall() {
 
 ### 3. Handle Incoming Calls
 
-To display an incoming call, add the following code when handling the APNs notification:
+To display an incoming call, add the following code when handling the voip type APNs notification:
 
 ```swift
 let cicare = CicareSdkCall()
@@ -86,6 +131,7 @@ cicare.incoming(
 ## ⚙ Optional Metadata
 
 You can customize call labels or status texts using the `metaData` parameter.
+
 Example:
 
 ```swift
@@ -112,4 +158,18 @@ cicare.outgoing(
 ## 🔗 References
 
 * CocoaPods: [https://cocoapods.org/pods/CiCareSDKCallIOS](https://cocoapods.org/pods/CiCareSDKCallIOS)
-* Latest version: **1.2.0-alpha.4**
+* Latest version: **1.2.0-rc.1**
+* Apple Docs:
+
+  * [Push Notifications](https://developer.apple.com/documentation/usernotifications)
+  * [VoIP Push Notifications](https://developer.apple.com/documentation/pushkit)
+  * [Microphone Permissions](https://developer.apple.com/documentation/avfoundation/capturing_setup)
+
+---
+
+## 🛠 Notes
+
+* Ensure **APNs VoIP certificate** or **token authentication** is correctly set up.
+* Test notifications and calls on a **real device** (VoIP push is not supported in simulators).
+* Make sure to request microphone permission before initiating a call.
+
