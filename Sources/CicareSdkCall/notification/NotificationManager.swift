@@ -27,8 +27,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         let acceptAction = UNNotificationAction(identifier: "ACCEPT_CALL", title: "Accept", options: [.foreground])
         let rejectAction = UNNotificationAction(identifier: "REJECT_CALL", title: "Reject", options: [.destructive])
         let incomingCategory = UNNotificationCategory(identifier: "incoming", actions: [acceptAction, rejectAction], intentIdentifiers: [], options: [])
+        let missedCategory = UNNotificationCategory(identifier: "missed", actions: [], intentIdentifiers: [], options: [])
         
-        UNUserNotificationCenter.current().setNotificationCategories([incomingCategory])
+        UNUserNotificationCenter.current().setNotificationCategories([incomingCategory, missedCategory])
     }
     
     private func post(title: String, body: String, id: String) {
@@ -69,8 +70,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         post(title: "Ongoing call", body: "In call with \(callee)", id: "ongoing")
     }
     
-    func showMissedOrEndedNotification() {
-        post(title: "Call Ended", body: "", id: "ended")
+    func showMissedOrEndedNotification(caller: String) {
+        post(title: "Missed call", body: "Missed call from \(caller)", id: "missed")
     }
     
     // Optional: Handle user actions on notifications
