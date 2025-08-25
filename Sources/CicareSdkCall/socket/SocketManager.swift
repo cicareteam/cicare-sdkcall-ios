@@ -112,11 +112,11 @@ class SocketManagerSignaling: NSObject {
                 switch result {
                 case .success(let sdpDesc):
                     let sdpPayload: [String: Any] = [
-                        "type": sdpDesc.type.rawValue,
+                        "type": "offer",
                         "sdp": sdpDesc.sdp
                     ]
                     let payload: [String: Any] = [
-                        "is_caller": true,
+                        "is_caller": false,
                         "sdp": sdpPayload
                     ]
                     self.send(event: "SDP_OFFER", data: payload)
@@ -125,7 +125,14 @@ class SocketManagerSignaling: NSObject {
                 }
             }
         }
-        socket?.on("ACCEPTED") { _, _ in        }
+        socket?.on("RINGING_OK") {_, _ in
+            
+        }
+        socket?.on("MISSED_CALL") {_, _ in
+            self.onCallStateChanged(.ended)
+        }
+        socket?.on("ACCEPTED") { _, _ in
+        }
         socket?.on("CONNECTED") { _, _ in
             self.onCallStateChanged(.connected)
             self.socket?.emit("CONNECTED")

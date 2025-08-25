@@ -26,6 +26,7 @@ struct CallSessionRequest: Codable {
     let calleeName: String
     let calleeAvatar: String
     let checkSum: String
+    let isInternal: Bool?
 }
 
 final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
@@ -33,6 +34,11 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         print("Hello \(callObserver) \(call)")
     }
     
+    private var callerName: String?
+    private var callerAvatar: String?
+    private var metaData: [String:String]?
+    
+    private var audioSession: AVAudioSession?
     
     static let sharedInstance: CallService = CallService()
     
@@ -99,6 +105,10 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         let incomingUUID = UUID()
         CallState.shared.currentCallUUID = incomingUUID
         
+        self.callerName = callerName
+        self.callerAvatar = avatarUrl
+        self.metaData = metaData
+        
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(type: .generic, value: callerName)
         update.localizedCallerName = callerName
@@ -118,6 +128,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                             SocketManagerSignaling.shared.ringingCall()
                         } else {
                             self?.endCall()
+                            NotificationManager.shared.showMissedOrEndedNotification(caller: callerName)
                         }
                     }
                 }
@@ -229,7 +240,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     func endCall() {
         print("End the call")
         self.postCallStatus(.ended)
-        NotificationManager.shared.showMissedOrEndedNotification()
         if let uuid = currentCall {
             print("uuidnya \(uuid)")
             let endCallAction = CXEndCallAction.init(call:uuid)
@@ -244,10 +254,11 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     func cancelCall() {
+        print("Cancel")
         SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
-        NotificationManager.shared.showMissedOrEndedNotification()
+        self.postCallStatus(CallStatus.cancel)
         if let uuid = currentCall {
-            print("uuidnya \(uuid) \(CallState.shared.currentCallUUID)")
+            print("uuidnya \(uuid) \(String(describing: CallState.shared.currentCallUUID))")
             let endCallAction = CXEndCallAction.init(call:uuid)
             let transaction = CXTransaction.init()
             transaction.addAction(endCallAction)
@@ -261,7 +272,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     func declineCall() {
         SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
-        NotificationManager.shared.showMissedOrEndedNotification()
         if let uuid = CallState.shared.currentCallUUID,
            let _ = CallState.shared.callProvider {
             let endCallAction = CXEndCallAction(call: uuid)
@@ -274,7 +284,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     func busyCall() {
         self.postCallStatus(.busy)
-        NotificationManager.shared.showMissedOrEndedNotification()
+        NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
         if let uuid = currentCall {
             let endCallAction = CXEndCallAction.init(call:uuid)
             let transaction = CXTransaction.init()
@@ -356,13 +366,15 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         //todo: answer network call
         delegate?.callDidAnswer()
         DispatchQueue.main.async {
-            self.showCallScreen()
+            self.showCallScreen(callStatus: "connecting")
         }
-        self.postCallStatus(.connected)
+        SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
+        self.postCallStatus(.connecting)
         action.fulfill()
     }
     
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
+        self.audioSession = nil
         
         if (callStatus == .incoming) {
             SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
@@ -406,6 +418,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     /// Called when the provider's audio session activation state changes.
     func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         print("🔊 Audio session activated")
+        self.audioSession = audioSession
         do {
             try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
             try audioSession.setActive(true)
@@ -436,9 +449,13 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         return nil
     }
 
-    private func showCallScreen() {
+    private func showCallScreen(callStatus: String) {
         let callVC = CallScreenViewController()
         callVC.modalPresentationStyle = .fullScreen
+        callVC.statusLabel.text = self.metaData?["call_\(callStatus)"] ?? callStatus
+        callVC.calleeName = self.callerName ?? ""
+        callVC.avatarUrl = self.callerAvatar ?? ""
+        
 
         if let rootVC = topViewController() {
             // Kalau rootVC berupa UINavigationController, ambil top-nya

@@ -15,7 +15,7 @@ public class CallScreenViewController: UIViewController {
     
     // MARK: - UI Elements
     private let nameLabel = UILabel()
-    private let statusLabel = UILabel()
+    var statusLabel = UILabel()
     private let avatarImageView = UIImageView()
     private let connectionLabel = UILabel()
     
@@ -482,6 +482,7 @@ public class CallScreenViewController: UIViewController {
         ) {
             print("uuid \(String(describing: CallService.sharedInstance.currentCall))")
             if (!self.isConnected) {
+                self.statusLabel.text = self.metaData["call_end"]
                 CallService.sharedInstance.cancelCall()
             } else {
                 if let uuid = CallService.sharedInstance.currentCall {
