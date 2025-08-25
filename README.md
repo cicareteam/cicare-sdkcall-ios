@@ -1,26 +1,21 @@
-Berikut **README.md** yang siap dipakai untuk dokumentasi penggunaan SDK kamu.
-
----
-
-````markdown
 # CiCare SDK Call iOS
 
-SDK untuk mengintegrasikan fitur **call (outgoing & incoming)** ke dalam aplikasi iOS Anda menggunakan **CiCare SDK**.
+This SDK allows you to integrate **outgoing and incoming call features** into your iOS app using **CiCare SDK**.
 
-## 📦 Instalasi
+## 📦 Installation
 
-Tambahkan source CocoaPods pada `Podfile`:
+Add the CocoaPods source in your `Podfile`:
 
 ```ruby
 source 'https://github.com/CocoaPods/Specs.git'
 
 target 'YourAppTarget' do
   use_frameworks!
-  pod 'CiCareSDKCallIOS', '1.2.0-alpha.3'
+  pod 'CiCareSDKCallIOS', '1.2.0-alpha.4'
 end
 ````
 
-Lalu jalankan:
+Then run:
 
 ```bash
 pod install
@@ -28,11 +23,11 @@ pod install
 
 ---
 
-## 🚀 Cara Menggunakan
+## 🚀 Usage
 
-### 1. Inisialisasi & Setup API
+### 1. Initialize & Setup API
 
-Sebelum memulai panggilan, lakukan inisialisasi SDK dan konfigurasi API:
+Before starting a call, initialize the SDK and configure the API:
 
 ```swift
 let cicare = CicareSdkCall()
@@ -41,9 +36,9 @@ cicare.setAPI(baseUrl: "https://your-api-url.com", token: "your-api-token")
 
 ---
 
-### 2. Melakukan Outgoing Call
+### 2. Make an Outgoing Call
 
-Gunakan kode berikut untuk memulai panggilan keluar:
+Use the following code to start an outgoing call:
 
 ```swift
 func makeCall() {
@@ -57,49 +52,47 @@ func makeCall() {
         calleeName: "Anas",
         calleeAvatar: "https://avatar.iran.liara.run/public",
         checkSum: "asdfasdf",
-        metaData: ["call_title": "Call Gratis"]
+        metaData: ["call_title": "Free Call"]
     )
 }
 ```
 
 ---
 
-### 3. Menangani Incoming Call
+### 3. Handle Incoming Calls
 
-Untuk menampilkan panggilan masuk:
+To display an incoming call, add the following code when handling the APNs notification:
 
 ```swift
-func handleIncomingCall(token: String) {
-    let cicare = CicareSdkCall()
-    
-    cicare.incoming(
-        callerId: "2",
-        callerName: "Halis",
-        callerAvatar: "https://avatar.iran.liara.run/public/boy",
-        calleeId: "3",
-        calleeName: "Anas",
-        calleeAvatar: "https://avatar.iran.liara.run/public",
-        checkSum: "asdfasdf",
-        server: "https://sip-gw.c-icare.cc:8443",
-        token: token,
-        isFormPhone: false,
-        metaData: [:]
-    )
-}
+let cicare = CicareSdkCall()
+
+cicare.incoming(
+    callerId: "2",
+    callerName: "Halis",
+    callerAvatar: "https://avatar.iran.liara.run/public/boy",
+    calleeId: "3",
+    calleeName: "Anas",
+    calleeAvatar: "https://avatar.iran.liara.run/public",
+    checkSum: "asdfasdf",
+    server: "https://sip-gw.c-icare.cc:8443",
+    token: token,
+    isFormPhone: false,
+    metaData: [:]
+)
 ```
 
 ---
 
-## ⚙ Metadata Opsional
+## ⚙ Optional Metadata
 
-Anda dapat menyesuaikan teks label atau status panggilan dengan `metaData`.
-Contoh penggunaan:
+You can customize call labels or status texts using the `metaData` parameter.
+Example:
 
 ```swift
 let meta: [String: String] = [
-    "call_title": "Gratis Call",
-    "call_busy": "User sedang sibuk",
-    "call_weak_signal": "Sinyal lemah"
+    "call_title": "Free Call",
+    "call_busy": "User is busy",
+    "call_weak_signal": "Weak signal"
 ]
 
 cicare.outgoing(
@@ -116,10 +109,7 @@ cicare.outgoing(
 
 ---
 
-## 🔗 Referensi
+## 🔗 References
 
 * CocoaPods: [https://cocoapods.org/pods/CiCareSDKCallIOS](https://cocoapods.org/pods/CiCareSDKCallIOS)
-* Versi terbaru: **1.2.0-alpha.3**
-
----
-
+* Latest version: **1.2.0-alpha.4**
