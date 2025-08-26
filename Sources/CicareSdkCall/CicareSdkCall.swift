@@ -128,7 +128,6 @@ public class CicareSdkCall {
                 calleeName: calleeName,
                 calleeAvatar: calleeAvatar,
                 checkSum: checkSum,
-                isInternal: true
             ))
         }
         self.showCallScreen(
