@@ -13,7 +13,7 @@ source 'https://github.com/CocoaPods/Specs.git'
 
 target 'YourAppTarget' do
   use_frameworks!
-  pod 'CiCareSDKCallIOS', '1.2.0-rc.1'
+  pod 'CiCareSDKCallIOS', '1.2.0-rc.2'
 end
 ````
 
