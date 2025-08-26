@@ -221,7 +221,14 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                                 
                             }
                             break
-                        case .failure(_):
+                        case .failure(let error):
+                            switch error {
+                            case .badRequest(let data):
+                                self.postNetworkStatus(data.message)
+                            default:
+                                print(error)
+                                self.postNetworkStatus("call_failed_api")
+                            }
                             /*switch error {
                             case .badURL:
                                 self.postNetworkStatus("Failed make a call due to bad URL")
@@ -247,7 +254,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                                     print("❌ Other request error: \(underlyingError)")
                                 }
                             }*/
-                            self.postNetworkStatus("call_failed_api")
                             //self.endCall()
                         }
                     })
