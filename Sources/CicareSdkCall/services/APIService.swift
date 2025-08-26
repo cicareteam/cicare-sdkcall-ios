@@ -1,10 +1,16 @@
 import Foundation
 
+struct ErrorResponse: Codable {
+    let code: Int
+    let message: String
+}
+
 enum APIError: Error {
     case badURL
     case requestFailed(Error)
-    case invalidResponse
+    case invalidResponse(Data?)
     case decodingFailed(Error)
+    case badRequest(ErrorResponse)
 }
 
 final class APIService: NSObject {
@@ -56,16 +62,30 @@ final class APIService: NSObject {
                 return
             }
             guard let http = response as? HTTPURLResponse,
-                  200...299 ~= http.statusCode,
                   let data = data else {
-                completion(.failure(.invalidResponse))
+                completion(.failure(.invalidResponse(nil)))
                 return
             }
-            do {
-                let decoded = try JSONDecoder().decode(T.self, from: data)
-                completion(.success(decoded))
-            } catch {
-                completion(.failure(.decodingFailed(error)))
+            // Cek status code
+            switch http.statusCode {
+            case 200...299:
+                do {
+                    let decoded = try JSONDecoder().decode(T.self, from: data)
+                    completion(.success(decoded))
+                } catch {
+                    completion(.failure(.decodingFailed(error)))
+                }
+
+            case 400:
+                do {
+                    let errorDecoded = try JSONDecoder().decode(ErrorResponse.self, from: data)
+                    completion(.failure(.badRequest(errorDecoded)))
+                } catch {
+                    completion(.failure(.invalidResponse(data)))
+                }
+
+            default:
+                completion(.failure(.invalidResponse(data)))
             }
         }.resume()
     }
