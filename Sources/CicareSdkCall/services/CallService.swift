@@ -37,10 +37,15 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     private var callerName: String?
     private var callerAvatar: String?
     private var metaData: [String:String]?
+    private var server: String = ""
+    private var token: String = ""
+    private var isFromPhone: Bool = false
     
     private var audioSession: AVAudioSession?
     
     static let sharedInstance: CallService = CallService()
+    
+    private var onMessageClicked : (() -> Void)?
     
     var provider : CXProvider?
     var callController : CXCallController?
@@ -101,16 +106,32 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         server: String,
         tokenCall: String,
         isFromPhone: Bool,
+        onMessageClicked: (() -> Void)? = nil
     ) {
-        let incomingUUID = UUID()
-        CallState.shared.currentCallUUID = incomingUUID
         
+        self.onMessageClicked = onMessageClicked
         self.callerName = callerName
         self.callerAvatar = avatarUrl
         self.metaData = metaData
-        
+        self.server = server
+        self.token = tokenCall
+        self.isFromPhone = isFromPhone
+        if let url = URL(string: server) {
+            SocketManagerSignaling.shared.connect(wssUrl: url, token: token) { status in
+                if status == .connected {
+                    SocketManagerSignaling.shared.ringingCall()
+                } else {
+                    self.endCall()
+                }
+            }
+        }
+    }
+    
+    public func ringing() {
+        let incomingUUID = UUID()
+        CallState.shared.currentCallUUID = incomingUUID
         let update = CXCallUpdate()
-        update.remoteHandle = CXHandle(type: .generic, value: callerName)
+        update.remoteHandle = CXHandle(type: .generic, value: self.callerName ?? "")
         update.localizedCallerName = callerName
         update.hasVideo = false
         provider?.reportNewIncomingCall(with: incomingUUID, update: update) { [weak self] error in
@@ -118,22 +139,34 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                 print("❌ Incoming call error: \(error)")
                 self?.delegate?.callDidFail()
             } else {
+                if ((self?.isForeground()) != nil) {
+                    self?.showCallScreen(callStatus: "incoming")
+                }
                 self?.currentCall = incomingUUID
                 self?.postCallStatus(.incoming)
                 self?.callStatus = .incoming
-                NotificationManager.shared.showIncomingCallNotification(caller: callerName, uuid: incomingUUID)
-                if let url = URL(string: server) {
-                    SocketManagerSignaling.shared.connect(wssUrl: url, token: tokenCall) { status in
-                        if status == .connected {
-                            SocketManagerSignaling.shared.ringingCall()
-                        } else {
-                            self?.endCall()
-                            NotificationManager.shared.showMissedOrEndedNotification(caller: callerName)
-                        }
-                    }
-                }
+                
             }
         }
+    }
+    
+    public func missed() {
+        NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
+    }
+    
+    private func isForeground() -> Bool {
+        if #available(iOS 13.0, *) {
+            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+                if scene.activationState == .foregroundActive {
+                    return true
+                }
+            }
+        } else {
+            if UIApplication.shared.applicationState == .active {
+                return true
+            }
+        }
+        return false
     }
     
     // MARK: - Memulai Panggilan Keluar
@@ -141,7 +174,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         currentCall = UUID.init()
         if let unwrappedCurrentCall = currentCall {
             CallState.shared.currentCallUUID = currentCall
-            print("uuidcall \(unwrappedCurrentCall)")
             let cxHandle = CXHandle(type: CXHandle.HandleType.generic, value: handle)
             let action = CXStartCallAction.init(call: unwrappedCurrentCall, handle: cxHandle)
             action.isVideo = false
@@ -155,7 +187,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                     NotificationManager.shared.showOutgoingCallNotification(callee: handle)
                     
                     guard let bodyData = try? JSONEncoder().encode(callData) else {
-                        print("Failed encoding body!")
                         return
                     }
                     
@@ -168,7 +199,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                         switch result {
                         case .success(let callSession):
                             if let wssUrl = URL(string: callSession.server) {
-                                print("Connect to signaling \(String(describing: self.currentCall))")
                                 self.postCallStatus(.calling)
                                 SocketManagerSignaling.shared.connect(wssUrl: wssUrl, token: callSession.token) { status in
                                     if status == .connected {
@@ -238,10 +268,9 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     func endCall() {
-        print("End the call")
+        SocketManagerSignaling.shared.send(event: "REQUEST_HANGUP", data: [:])
         self.postCallStatus(.ended)
         if let uuid = currentCall {
-            print("uuidnya \(uuid)")
             let endCallAction = CXEndCallAction.init(call:uuid)
             let transaction = CXTransaction.init()
             transaction.addAction(endCallAction)
@@ -254,11 +283,9 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     func cancelCall() {
-        print("Cancel")
         SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
         self.postCallStatus(CallStatus.cancel)
         if let uuid = currentCall {
-            print("uuidnya \(uuid) \(String(describing: CallState.shared.currentCallUUID))")
             let endCallAction = CXEndCallAction.init(call:uuid)
             let transaction = CXTransaction.init()
             transaction.addAction(endCallAction)
@@ -272,18 +299,18 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     func declineCall() {
         SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
-        if let uuid = CallState.shared.currentCallUUID,
-           let _ = CallState.shared.callProvider {
+        if let uuid = currentCall {
             let endCallAction = CXEndCallAction(call: uuid)
             let transaction = CXTransaction()
             transaction.addAction(endCallAction)
             requestTransaction(transaction: transaction){ succes in
-                
+                self.postCallStatus(.ended)
             }
         }
     }
     func busyCall() {
         self.postCallStatus(.busy)
+        SocketManagerSignaling.shared.send(event: "BUSY", data: [:])
         NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
         if let uuid = currentCall {
             let endCallAction = CXEndCallAction.init(call:uuid)
@@ -318,7 +345,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         callController?.request(transaction, completion: { (error : Error?) in
             
             if error != nil {
-                print("\(String(describing: error?.localizedDescription))")
                 weakSelf?.delegate?.callDidFail()
                 completion(false)
             } else {
@@ -365,11 +391,14 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         //todo: configure audio session
         //todo: answer network call
         delegate?.callDidAnswer()
-        DispatchQueue.main.async {
-            self.showCallScreen(callStatus: "connecting")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if (!self.isForeground()) {
+                self.showCallScreen(callStatus: "connecting")
+            }
         }
         SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
-        self.postCallStatus(.connecting)
+        callStatus = .connected
+        self.postCallStatus(.connected)
         action.fulfill()
     }
     
@@ -378,6 +407,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         
         if (callStatus == .incoming) {
             SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
+            NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
         } else if (callStatus == .connecting || callStatus == .calling) {
             SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
         }
@@ -438,9 +468,12 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     private func topViewController() -> UIViewController? {
         if #available(iOS 13.0, *) {
             // iOS 13 ke atas pakai connectedScenes
-            if let scene = UIApplication.shared.connectedScenes
-                .first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
-                return scene.windows.first(where: { $0.isKeyWindow })?.rootViewController
+            let scenes = UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+            for scene in scenes {
+                if let rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController {
+                    return rootVC
+                }
             }
         } else {
             // iOS 12 ke bawah pakai keyWindow
@@ -450,19 +483,21 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
 
     private func showCallScreen(callStatus: String) {
-        let callVC = CallScreenViewController()
-        callVC.modalPresentationStyle = .fullScreen
-        callVC.statusLabel.text = self.metaData?["call_\(callStatus)"] ?? callStatus
-        callVC.calleeName = self.callerName ?? ""
-        callVC.avatarUrl = self.callerAvatar ?? ""
-        
+        DispatchQueue.main.async {
+            let callVC = CallScreenViewController(onMessageClicked: self.onMessageClicked)
+            callVC.modalPresentationStyle = .fullScreen
+            callVC.callStatus = callStatus
+            callVC.calleeName = self.callerName ?? ""
+            callVC.avatarUrl = self.callerAvatar ?? ""
 
-        if let rootVC = topViewController() {
-            // Kalau rootVC berupa UINavigationController, ambil top-nya
-            if let nav = rootVC as? UINavigationController {
-                nav.pushViewController(callVC, animated: true)
+            if let rootVC = self.topViewController() {
+                if let nav = rootVC as? UINavigationController {
+                    nav.pushViewController(callVC, animated: true)
+                } else {
+                    rootVC.present(callVC, animated: true, completion: nil)
+                }
             } else {
-                rootVC.present(callVC, animated: true, completion: nil)
+                print("⚠️ RootViewController not ready yet")
             }
         }
     }

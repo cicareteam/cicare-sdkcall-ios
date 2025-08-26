@@ -102,7 +102,8 @@ public class CicareSdkCall {
                     metaData: merged,
                     server: server,
                     tokenCall: token,
-                    isFromPhone: isFormPhone
+                    isFromPhone: isFormPhone,
+                    onMessageClicked: onMessageClicked
                 )
         //self.showCallScreen(calleeName: callerName, callStatus: CallStatus.incoming.rawValue, avatarUrl: callerAvatar, metaData: merged)
     }
