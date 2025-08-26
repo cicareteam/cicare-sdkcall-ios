@@ -48,13 +48,11 @@ class SocketManagerSignaling: NSObject {
                                              .connectParams(["token": token])])
         socket = manager?.socket(forNamespace: "/")
         socket?.on(clientEvent: .statusChange) { data, _ in
-            print("data socket status: \(data)")
                 if let status = data.first as? SocketIOClientStatus {
                     completion(status)
                 }
         }
         socket?.on(clientEvent: .connect) { _, _ in
-            print("Transport:")
             completion(.connected)
         }
         socket?.on(clientEvent: .disconnect) { _, _ in
@@ -78,7 +76,6 @@ class SocketManagerSignaling: NSObject {
         socket?.on(clientEvent: .error) { error, arg  in print("socket error: \(error) \(arg)")
         }
         socket?.on(clientEvent: .statusChange) { data, _ in
-            print("data socket status: \(data)")
         }
         socket?.on("INIT_OK") { _, _ in
             if (!self.webrtcManager.isPeerConnectionActive()) {
@@ -125,8 +122,11 @@ class SocketManagerSignaling: NSObject {
                 }
             }
         }
+        socket?.on("MISSED_CALL") {_, _ in
+            self.onCallStateChanged(.missed)
+        }
         socket?.on("RINGING_OK") {_, _ in
-            
+            self.onCallStateChanged(.ringing_ok)
         }
         socket?.on("MISSED_CALL") {_, _ in
             self.onCallStateChanged(.ended)
@@ -150,7 +150,6 @@ class SocketManagerSignaling: NSObject {
             self.onCallStateChanged(.busy)
         }
         socket?.on("SDP_OFFER") { data, _ in
-            print("SDP OFFER RECEIVED")
             guard let dict = data.first as? [String: Any],
                   let sdpStr = dict["sdp"] as? String else { return }
             DispatchQueue.main.async {
@@ -164,7 +163,6 @@ class SocketManagerSignaling: NSObject {
             
         }
         socket?.on("SDP_ANSWER") { data, _ in
-            print("SDP ANSWER RECEIVED")
             guard let dict = data.first as? [String: Any],
                   let sdpStr = dict["sdp"] as? String else { return }
             let sdp = RTCSessionDescription(type: .answer, sdp: sdpStr)
@@ -184,6 +182,10 @@ class SocketManagerSignaling: NSObject {
     func onCallStateChanged(_ state: CallStatus) {
         CallService.sharedInstance.postCallStatus(state)
         switch state {
+        case .ringing_ok:
+            CallService.sharedInstance.ringing()
+        case .missed:
+            CallService.sharedInstance.missed()
         case .connected:
             break
         case .ringing:
@@ -201,7 +203,6 @@ class SocketManagerSignaling: NSObject {
         default:
             break
         }
-        print("call state change \(state)")
     }
     
 }

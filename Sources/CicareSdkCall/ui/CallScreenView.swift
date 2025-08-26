@@ -18,6 +18,8 @@ public class CallScreenViewController: UIViewController {
     var statusLabel = UILabel()
     private let avatarImageView = UIImageView()
     private let connectionLabel = UILabel()
+    private var incomingButtonStack: UIStackView!
+    private var connectedButtonStack: UIStackView!
     
     private var muteButton: CircleIconButton!
     private var speakerButton: CircleIconButton!
@@ -111,7 +113,7 @@ public class CallScreenViewController: UIViewController {
         guard let statusString = notification.userInfo?["status"] as? String,
               let status = CallStatus(rawValue: statusString) else { return }
         
-        self.status = status
+        self.callStatus = status.rawValue
         DispatchQueue.main.async {
             switch status {
             case .incoming:
@@ -129,9 +131,13 @@ public class CallScreenViewController: UIViewController {
             case .connected:
                 self.isConnected = true
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? statusString
-                NotificationManager.shared.showOngoingCallNotification(callee: self.calleeName)
+                //NotificationManager.shared.showOngoingCallNotification(callee: self.calleeName)
                 self.muteButton.isEnabled = true
                 self.startCallDurationTimer()
+                DispatchQueue.main.async {
+                    self.incomingButtonStack.isHidden = true
+                    self.connectedButtonStack.isHidden = false
+                }
             case .connecting:
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_connecting"]
             case .ringing:
@@ -147,8 +153,11 @@ public class CallScreenViewController: UIViewController {
             case .cancel:
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_end"]
                 self.endedCall()
+            default:
+                print(status)
             }
         }
+        self.status = status
     }
     
     private func showErrorConnectionAlert(text: String, icon: UIImage?) {
@@ -164,11 +173,11 @@ public class CallScreenViewController: UIViewController {
     }
 
     func endedCall(delay: Double = 1.5) {
-        self.isConnected = false
+        /*self.isConnected = false
         self.callDurationTimer?.invalidate()
         self.muteButton.isEnabled = false
         self.speakerButton.isEnabled = false
-        self.endButton.isEnabled = false
+        self.endButton.isEnabled = false*/
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             self?.dismiss(animated: true, completion: nil)
         }
@@ -255,17 +264,23 @@ public class CallScreenViewController: UIViewController {
             }
             avatarImageView.tintColor = .gray
         }
-        
-        let buttons = callStatus == "incoming" ? incomingbuttons() : connectedButtons()
 
         // Stack setup for buttons
-        let buttonStack = UIStackView(arrangedSubviews: buttons)
-        buttonStack.axis = .vertical
-        buttonStack.spacing = 50
-        buttonStack.alignment = .center
-        buttonStack.translatesAutoresizingMaskIntoConstraints = false
-        buttonStack.isUserInteractionEnabled = true
-        view.addSubview(buttonStack)
+        incomingButtonStack = UIStackView(arrangedSubviews: incomingbuttons())
+        incomingButtonStack.axis = .vertical
+        incomingButtonStack.spacing = 50
+        incomingButtonStack.alignment = .center
+        incomingButtonStack.translatesAutoresizingMaskIntoConstraints = false
+        incomingButtonStack.isUserInteractionEnabled = true
+        view.addSubview(incomingButtonStack)
+        
+        connectedButtonStack = UIStackView(arrangedSubviews: connectedButtons())
+        connectedButtonStack.axis = .vertical
+        connectedButtonStack.spacing = 50
+        connectedButtonStack.alignment = .center
+        connectedButtonStack.translatesAutoresizingMaskIntoConstraints = false
+        connectedButtonStack.isUserInteractionEnabled = true
+        view.addSubview(connectedButtonStack)
 
         NSLayoutConstraint.activate([
             // labelStack at top
@@ -284,11 +299,24 @@ public class CallScreenViewController: UIViewController {
             nameLabelStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             nameLabelStack.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -10),
                         
-            buttonStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            buttonStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -70),
-            buttonStack.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
-            buttonStack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20)
+            incomingButtonStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            incomingButtonStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -70),
+            incomingButtonStack.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
+            incomingButtonStack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20),
+            
+            connectedButtonStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            connectedButtonStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -70),
+            connectedButtonStack.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
+            connectedButtonStack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20)
         ])
+        
+        if (callStatus == "incoming")  {
+            incomingButtonStack.isHidden = false
+            connectedButtonStack.isHidden = true
+        } else {
+            incomingButtonStack.isHidden = true
+            connectedButtonStack.isHidden = false
+        }
     }
     
     var callDurationTimer: Timer?
@@ -431,7 +459,6 @@ public class CallScreenViewController: UIViewController {
                 let transaction = CXTransaction(action: muteAction)
                 CallService.sharedInstance.requestTransaction(transaction: transaction) { success in
                     if (success) {
-                        print("muted \(success)")
                     }
                 }
             }
@@ -480,13 +507,11 @@ public class CallScreenViewController: UIViewController {
             iconColor: .white,
             backgroundColor: .red
         ) {
-            print("uuid \(String(describing: CallService.sharedInstance.currentCall))")
             if (!self.isConnected) {
                 self.statusLabel.text = self.metaData["call_end"]
                 CallService.sharedInstance.cancelCall()
             } else {
                 if let uuid = CallService.sharedInstance.currentCall {
-                    print("End call button tapped! \(uuid)")
                     CallService.sharedInstance.endCall()
                 }
             }

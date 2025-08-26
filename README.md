@@ -13,7 +13,7 @@ source 'https://github.com/CocoaPods/Specs.git'
 
 target 'YourAppTarget' do
   use_frameworks!
-  pod 'CiCareSDKCallIOS', '1.2.0-rc.3'
+  pod 'CiCareSDKCallIOS', '1.2.0-rc.4'
 end
 ````
 
@@ -129,7 +129,9 @@ cicare.incoming(
     token: token,
     isFormPhone: false,
     metaData: [:]
-)
+) {
+print("on message button clicked")
+}
 ```
 
 ---
@@ -164,7 +166,7 @@ cicare.outgoing(
 ## 🔗 References
 
 * CocoaPods: [https://cocoapods.org/pods/CiCareSDKCallIOS](https://cocoapods.org/pods/CiCareSDKCallIOS)
-* Latest version: **1.2.0-rc.3**
+* Latest version: **1.2.0-rc.4**
 * Apple Docs:
 
   * [Push Notifications](https://developer.apple.com/documentation/usernotifications)
