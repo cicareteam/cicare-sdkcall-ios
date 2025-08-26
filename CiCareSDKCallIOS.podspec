@@ -11,6 +11,7 @@ Pod::Spec.new do |spec|
   DESC
   spec.homepage     = "https://github.com/cicareteam/cicare-sdkcall-ios"
   spec.license      = { :type => "Commercial", :file => "LICENSE" }
+  spec.readme       = "https://raw.githubusercontent.com/cicareteam/cicare-sdkcall-ios/refs/heads/main/README.md"
   spec.author       = { "C-icare Team" => "dev@c-icare.cc" }
   spec.platform     = :ios, "12.0"
   spec.swift_version = ['5.9', '5.10']
