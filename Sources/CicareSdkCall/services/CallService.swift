@@ -26,7 +26,6 @@ struct CallSessionRequest: Codable {
     let calleeName: String
     let calleeAvatar: String
     let checkSum: String
-    let isInternal: Bool?
 }
 
 final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
