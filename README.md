@@ -72,6 +72,12 @@ Add these keys for proper permission descriptions:
 
 ### 1. Initialize & Setup API
 
+Import module:
+
+```swift
+import CicareSdkCall
+```
+
 Before starting a call, initialize the SDK and configure the API:
 
 ```swift
