@@ -354,10 +354,15 @@ public class CallScreenViewController: UIViewController {
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             if let uuid = CallState.shared.currentCallUUID {
-                let muteAction = CXSetMutedCallAction(call: uuid, muted: !self.isMuted)
-                let _ = CXTransaction(action: muteAction)
-                
+                let muteAction = CXSetMutedCallAction(call: uuid, muted: self.isMuted)
+                let transaction = CXTransaction(action: muteAction)
+                CallService.sharedInstance.requestTransaction(transaction: transaction) { success in
+                    if (success) {
+                        //print("mute success")
+                    }
+                }
             }
+            
         }
         muteButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
         muteButton.isEnabled = false
@@ -455,10 +460,11 @@ public class CallScreenViewController: UIViewController {
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             if let uuid = CallState.shared.currentCallUUID {
-                let muteAction = CXSetMutedCallAction(call: uuid, muted: !self.isMuted)
+                let muteAction = CXSetMutedCallAction(call: uuid, muted: self.isMuted)
                 let transaction = CXTransaction(action: muteAction)
                 CallService.sharedInstance.requestTransaction(transaction: transaction) { success in
                     if (success) {
+                        print("mute success")
                     }
                 }
             }

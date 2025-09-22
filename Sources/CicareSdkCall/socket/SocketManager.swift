@@ -71,6 +71,10 @@ class SocketManagerSignaling: NSObject {
     func ringingCall() {
         self.send(event: "RINGING_CALL", data: [:])
     }
+    
+    func muteCall(_ mute: Bool) {
+        self.webrtcManager.setMicEnabled(mute);
+    }
 
     private func registerHandlers() {
         socket?.on(clientEvent: .error) { error, arg  in print("socket error: \(error) \(arg)")
@@ -81,6 +85,7 @@ class SocketManagerSignaling: NSObject {
             if (!self.webrtcManager.isPeerConnectionActive()) {
                 self.webrtcManager.reinit()
             }
+            self.webrtcManager.initMic()
             self.onCallStateChanged(.calling)
             self.webrtcManager.createOffer { result in
                 switch result {

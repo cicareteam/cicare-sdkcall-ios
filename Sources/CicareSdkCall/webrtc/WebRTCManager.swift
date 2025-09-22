@@ -24,7 +24,6 @@ class WebRTCManager: NSObject {
     private var peerConnectionFactory: RTCPeerConnectionFactory!
     private var audioTrack: RTCAudioTrack?
     private let iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
-
     override init() {
         super.init()
         initializePeerConnectionFactory()
@@ -73,10 +72,20 @@ class WebRTCManager: NSObject {
         let audioSource = peerConnectionFactory.audioSource(with: RTCMediaConstraints(mandatoryConstraints: nil,
                                                                                       optionalConstraints: nil))
         audioTrack = peerConnectionFactory.audioTrack(with: audioSource, trackId: "audio101")
-        audioTrack?.isEnabled = true
+        
+        let transceiverInit = RTCRtpTransceiverInit()
+            transceiverInit.direction = .sendRecv
+        
+        if let transceiver = peerConnection.addTransceiver(of: .audio, init: transceiverInit) {
+            transceiver.sender.track = audioTrack
+        }
+        
+        //peerConnection.addTransceiver(with: audioTrack!)
+        
+        /*audioTrack?.isEnabled = true
         if let track = audioTrack {
             peerConnection.add(track, streamIds: ["stream0"])
-        }
+        }*/
     }
 
     func setAudioOutputToSpeaker(enabled: Bool) {
@@ -151,7 +160,13 @@ class WebRTCManager: NSObject {
     }
 
     func setMicEnabled(_ enabled: Bool) {
-        audioTrack?.isEnabled = enabled
+        if (audioTrack != nil) {
+            //print("enable mic \(enabled)")
+            audioTrack?.isEnabled = enabled
+        } else {
+            print("audio track not set yet")
+        }
+        //RTCAudioSession.sharedInstance().isAudioEnabled = enabled
     }
 
     func close() {
