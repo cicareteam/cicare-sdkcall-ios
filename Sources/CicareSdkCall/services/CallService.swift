@@ -435,7 +435,9 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
-        print("Something else muted")
+        SocketManagerSignaling.shared.muteCall(action.isMuted)
+        // Jangan lupa panggil complete agar CallKit tahu aksinya berhasil
+        action.fulfill()
     }
     
     func provider(_ provider: CXProvider, perform action: CXSetGroupCallAction) {
@@ -448,6 +450,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     func provider(_ provider: CXProvider, timedOutPerforming action: CXAction) {
         // React to the action timeout if necessary, such as showing an error UI.
         print("Something else timout")
+        action.fulfill()
     }
     
     /// Called when the provider's audio session activation state changes.
@@ -457,6 +460,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         do {
             try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
             try audioSession.setActive(true)
+            
         } catch {
             print("❌ Audio session error: \(error)")
         }

@@ -8,7 +8,7 @@ struct ErrorResponse: Codable {
 enum APIError: Error {
     case badURL
     case requestFailed(Error)
-    case invalidResponse(Data?)
+    case invalidResponse(Error?)
     case decodingFailed(Error)
     case badRequest(ErrorResponse)
 }
@@ -63,7 +63,7 @@ final class APIService: NSObject {
             }
             guard let http = response as? HTTPURLResponse,
                   let data = data else {
-                completion(.failure(.invalidResponse(nil)))
+                completion(.failure(.invalidResponse(error ?? nil)))
                 return
             }
             // Cek status code
@@ -81,11 +81,11 @@ final class APIService: NSObject {
                     let errorDecoded = try JSONDecoder().decode(ErrorResponse.self, from: data)
                     completion(.failure(.badRequest(errorDecoded)))
                 } catch {
-                    completion(.failure(.invalidResponse(data)))
+                    completion(.failure(.invalidResponse(error)))
                 }
 
             default:
-                completion(.failure(.invalidResponse(data)))
+                completion(.failure(.invalidResponse(error)))
             }
         }.resume()
     }
