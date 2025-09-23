@@ -258,9 +258,9 @@ public class CallScreenViewController: UIViewController {
             }.resume()
         } else {
             if #available(iOS 13.0, *) {
-                avatarImageView.image = UIImage(systemName: "person.fill")
+                avatarImageView.image = AsssetKitImageProvider.Resources.avatarDefault.image
             } else {
-                avatarImageView.image = UIImage(named: "avatar_default")
+                avatarImageView.image = AsssetKitImageProvider.Resources.avatarDefault.image
             }
             avatarImageView.tintColor = .gray
         }
