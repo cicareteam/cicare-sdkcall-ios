@@ -517,7 +517,7 @@ public class CallScreenViewController: UIViewController {
                 self.statusLabel.text = self.metaData["call_end"]
                 CallService.sharedInstance.cancelCall()
             } else {
-                if let uuid = CallService.sharedInstance.currentCall {
+                if CallService.sharedInstance.currentCall != nil {
                     CallService.sharedInstance.endCall()
                 }
             }
