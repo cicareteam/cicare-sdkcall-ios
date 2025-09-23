@@ -180,7 +180,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             transaction.addAction(action)
             requestTransaction(transaction: transaction) { success in
                 if success {
-                    CallState.shared.callProvider = self.provider
                     self.postCallStatus(.connecting)
                     self.postCallProfile(calleeName, calleeAvatar, metaData)
                     NotificationManager.shared.showOutgoingCallNotification(callee: handle)

@@ -115,11 +115,17 @@ public extension SwiftUI.Image {
 // swiftlint:disable convenience_type
 private final class BundleToken {
   static let bundle: Bundle = {
-    #if SWIFT_PACKAGE
-    return Bundle.module
-    #else
-    return Bundle(for: BundleToken.self)
-    #endif
+    // Framework bundle tempat class ini berada
+    let frameworkBundle = Bundle(for: BundleToken.self)
+
+    // Cari resource bundle di dalam framework
+    if let url = frameworkBundle.url(forResource: "CiCareSDKCall", withExtension: "bundle"),
+       let resourceBundle = Bundle(url: url) {
+      return resourceBundle
+    }
+
+    // fallback
+    return frameworkBundle
   }()
 }
 // swiftlint:enable convenience_type
