@@ -1,8 +1,29 @@
 import Foundation
 
-struct ErrorResponse: Codable {
-    let code: Int
+struct ErrorResponse: Decodable {
+    let code: Int?
     let message: String
+
+    enum CodingKeys: String, CodingKey {
+        case code
+        case statusCode   // 🔹 tambahkan ini
+        case message
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // decode statusCode
+        code = try container.decodeIfPresent(Int.self, forKey: .statusCode)
+            ?? (try container.decodeIfPresent(Int.self, forKey: .code))
+        
+        // decode message bisa string atau array
+        if let msgArray = try? container.decode([String].self, forKey: .message) {
+            message = msgArray.joined(separator: "\n") // gabungkan array jadi string
+        } else {
+            message = try container.decode(String.self, forKey: .message)
+        }
+    }
 }
 
 enum APIError: Error {
@@ -78,6 +99,7 @@ final class APIService: NSObject {
 
             case 400:
                 do {
+                    print("Raw JSON:\n", error ?? "nil")
                     let errorDecoded = try JSONDecoder().decode(ErrorResponse.self, from: data)
                     completion(.failure(.badRequest(errorDecoded)))
                 } catch {
