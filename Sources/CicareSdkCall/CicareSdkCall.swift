@@ -15,7 +15,7 @@ public class CicareSdkCall {
         "call_refused": "Decline",
         "call_end": "End Call",
         "call_incoming": "Incoming",
-        "call_name_title": "Xanh SM Driver",
+        "call_name_title": "Green SM Driver",
         "call_temporarily_unavailable": "Currently unreachable",
         "call_lost_connection": "Connection lost",
         "call_weak_signal": "Weak Signal",
@@ -84,10 +84,10 @@ public class CicareSdkCall {
     
     public func incoming(
         callerId: String,
-        callerName: String = "Xanh SM Driver",
+        callerName: String = "Green SM Driver",
         callerAvatar: String,
         calleeId: String,
-        calleeName: String = "Xanh SM Customer",
+        calleeName: String = "Green SM Customer",
         calleeAvatar: String,
         checkSum: String,
         server: String,
@@ -96,9 +96,9 @@ public class CicareSdkCall {
         metaData: [String: String]?,
         onMessageClicked: (() -> Void)? = nil
     ) {
-        self.metaData["call_name_title"] = metaData?["call_name_title"] ?? "Xanh SM Driver"
-        let callerName = callerName == "" ? "Xanh SM Driver" : callerName
-        _ = calleeName == "" ? "Xanh SM Customer" : calleeName
+        self.metaData["call_name_title"] = metaData?["call_name_title"] ?? "Green SM Driver"
+        let callerName = callerName == "" ? "Green SM Driver" : callerName
+        _ = calleeName == "" ? "Green SM Customer" : calleeName
         let merged = self.metaData.merging(metaData ?? self.metaData) { _, new in new }
                 CallService.sharedInstance.reportIncomingCall(
                     callerName: callerName,
@@ -114,18 +114,18 @@ public class CicareSdkCall {
 
     public func outgoing(
         callerId: String,
-        callerName: String = "Xanh SM Driver",
+        callerName: String = "Green SM Driver",
         callerAvatar: String,
         calleeId: String,
-        calleeName: String = "Xanh SM Customer",
+        calleeName: String = "Green SM Customer",
         calleeAvatar: String,
         checkSum: String,
         metaData: [String: String]?
     ) {
-        self.metaData["call_name_title"] = metaData?["call_name_title"] ?? "Xanh SM Customer"
+        self.metaData["call_name_title"] = metaData?["call_name_title"] ?? "Green SM Customer"
         let merged = self.metaData.merging(metaData ?? self.metaData) { _, new in new }
-        let callerName = callerName == "" ? "Xanh SM Driver" : callerName
-        let calleeName = calleeName == "" ? "Xanh SM Customer" : calleeName
+        let callerName = callerName == "" ? "Green SM Driver" : callerName
+        let calleeName = calleeName == "" ? "Green SM Customer" : calleeName
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             CallService.sharedInstance.makeCall(handle: callerId, calleeName: calleeName, metaData: merged, callData: CallSessionRequest(
                 callerId: callerId,
