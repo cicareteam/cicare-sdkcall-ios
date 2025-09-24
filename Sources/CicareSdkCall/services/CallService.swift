@@ -30,7 +30,6 @@ struct CallSessionRequest: Codable {
 
 final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) {
-        print("Hello \(callObserver) \(call)")
     }
     
     private var callerName: String?

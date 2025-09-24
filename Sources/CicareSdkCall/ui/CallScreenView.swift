@@ -258,11 +258,12 @@ public class CallScreenViewController: UIViewController {
             }.resume()
         } else {
             if #available(iOS 13.0, *) {
-                avatarImageView.image = AsssetKitImageProvider.Resources.avatarDefault.image
+                avatarImageView.image = UIImage(systemName: "person.fill")
+                avatarImageView.backgroundColor = .systemGray5
             } else {
                 avatarImageView.image = AsssetKitImageProvider.Resources.avatarDefault.image
             }
-            avatarImageView.tintColor = .gray
+            avatarImageView.tintColor = .black
         }
 
         // Stack setup for buttons

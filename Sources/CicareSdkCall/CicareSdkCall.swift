@@ -134,7 +134,7 @@ public class CicareSdkCall {
                 calleeId: calleeId,
                 calleeName: calleeName,
                 calleeAvatar: calleeAvatar,
-                checkSum: checkSum,
+                checkSum: checkSum
             ))
         }
         self.showCallScreen(
