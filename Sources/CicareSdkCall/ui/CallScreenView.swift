@@ -117,7 +117,7 @@ public class CallScreenViewController: UIViewController {
         DispatchQueue.main.async {
             switch status {
             case .incoming:
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_incoming"]
+                self.statusLabel.text = self.metaData["call_incoming"]
                 //self.updateUIForIncomingCall()
             case .calling:
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_calling"]
@@ -126,7 +126,7 @@ public class CallScreenViewController: UIViewController {
                 self.isConnected = true
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? statusString
             case .ended:
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_end"]
+                self.statusLabel.text = self.metaData["call_end"] ?? "call_end"
                 self.endedCall()
             case .connected:
                 self.isConnected = true
@@ -173,11 +173,11 @@ public class CallScreenViewController: UIViewController {
     }
 
     func endedCall(delay: Double = 1.5) {
-        /*self.isConnected = false
+        self.isConnected = false
         self.callDurationTimer?.invalidate()
         self.muteButton.isEnabled = false
         self.speakerButton.isEnabled = false
-        self.endButton.isEnabled = false*/
+        self.endButton.isEnabled = false
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
             self?.dismiss(animated: true, completion: nil)
         }
@@ -197,7 +197,6 @@ public class CallScreenViewController: UIViewController {
     }
     
     private func setupUI() {
-        
         let titleLabel = UILabel()
         titleLabel.text = metaData["call_title"] ?? "Call Free"
         titleLabel.font = UIFont.boldSystemFont(ofSize: 22)
@@ -210,7 +209,7 @@ public class CallScreenViewController: UIViewController {
         titleStack.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(titleStack)
         
-        statusLabel.text = self.metaData[callStatus] ?? callStatus
+        statusLabel.text = self.metaData["call_\(callStatus)"] ?? callStatus
         statusLabel.font = UIFont.systemFont(ofSize: 16)
         statusLabel.textColor = .black
         statusLabel.textAlignment = .center
@@ -288,25 +287,25 @@ public class CallScreenViewController: UIViewController {
             titleStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
             titleStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             
-            statusStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 110),
             statusStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            statusStack.bottomAnchor.constraint(equalTo: avatarImageView.topAnchor, constant: -20),
             
             // avatar in center
             avatarImageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            avatarImageView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 170),
+            avatarImageView.bottomAnchor.constraint(equalTo: view.centerYAnchor, constant: -20),
             avatarImageView.widthAnchor.constraint(equalToConstant: 160),
             avatarImageView.heightAnchor.constraint(equalToConstant: 160),
             
             nameLabelStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            nameLabelStack.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -10),
+            nameLabelStack.topAnchor.constraint(equalTo: avatarImageView.bottomAnchor, constant: 30),
                         
             incomingButtonStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            incomingButtonStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -70),
+            incomingButtonStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -40),
             incomingButtonStack.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
             incomingButtonStack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20),
             
             connectedButtonStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            connectedButtonStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -70),
+            connectedButtonStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -40),
             connectedButtonStack.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 20),
             connectedButtonStack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -20)
         ])
@@ -355,11 +354,12 @@ public class CallScreenViewController: UIViewController {
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             if let uuid = CallState.shared.currentCallUUID {
+                print("muted 2 \(self.isMuted)")
                 let muteAction = CXSetMutedCallAction(call: uuid, muted: self.isMuted)
                 let transaction = CXTransaction(action: muteAction)
                 CallService.sharedInstance.requestTransaction(transaction: transaction) { success in
                     if (success) {
-                        //print("mute success")
+                        print("mute success")
                     }
                 }
             }
@@ -380,7 +380,7 @@ public class CallScreenViewController: UIViewController {
             self.speakerButton.button.backgroundColor =  self.isSpeakerOn ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             let session = AVAudioSession.sharedInstance()
             do {
-                try session.setCategory(.playAndRecord, mode: .voiceChat, options: .defaultToSpeaker)
+                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
                 try session.setActive(true)
                 
                 // Toggle the audio route to speaker or default (e.g., earphone)
@@ -461,6 +461,7 @@ public class CallScreenViewController: UIViewController {
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             if let uuid = CallState.shared.currentCallUUID {
+                print("muted \(self.isMuted)")
                 let muteAction = CXSetMutedCallAction(call: uuid, muted: self.isMuted)
                 let transaction = CXTransaction(action: muteAction)
                 CallService.sharedInstance.requestTransaction(transaction: transaction) { success in
@@ -485,7 +486,7 @@ public class CallScreenViewController: UIViewController {
             self.speakerButton.button.backgroundColor =  self.isSpeakerOn ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             let session = AVAudioSession.sharedInstance()
             do {
-                try session.setCategory(.playAndRecord, mode: .voiceChat, options: .defaultToSpeaker)
+                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
                 try session.setActive(true)
                 
                 // Toggle the audio route to speaker or default (e.g., earphone)
@@ -519,6 +520,7 @@ public class CallScreenViewController: UIViewController {
                 CallService.sharedInstance.cancelCall()
             } else {
                 if CallService.sharedInstance.currentCall != nil {
+                    self.isConnected = false
                     CallService.sharedInstance.endCall()
                 }
             }

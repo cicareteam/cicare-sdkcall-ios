@@ -407,13 +407,13 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         self.audioSession = nil
-        
         if (callStatus == .incoming) {
             SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
             NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
         } else if (callStatus == .connecting || callStatus == .calling) {
             SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
         }
+        self.postCallStatus(.ended)
         currentCall = nil
         SocketManagerSignaling.shared.disconnect()
         delegate?.callDidEnd()
@@ -461,6 +461,15 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             
         } catch {
             print("❌ Audio session error: \(error)")
+            do {
+                let session = AVAudioSession.sharedInstance()
+                try session.setCategory(.playAndRecord,
+                                        mode: .voiceChat,
+                                        options: [.allowBluetooth])
+                try session.setActive(true)
+            } catch {
+                print("Failed to set audio session:", error)
+            }
         }
     }
     
@@ -496,6 +505,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             callVC.callStatus = callStatus
             callVC.calleeName = self.callerName ?? ""
             callVC.avatarUrl = self.callerAvatar ?? ""
+            callVC.metaData = self.metaData!
 
             if let rootVC = self.topViewController() {
                 if let nav = rootVC as? UINavigationController {

@@ -18,6 +18,7 @@ class SocketManagerSignaling: NSObject {
     private let webrtcManager: WebRTCManager = WebRTCManager.init()
     private var manager: SocketManager?
     private var socket: SocketIOClient?
+    private var isConnected: Bool = false
 
     private override init() {
         super.init()
@@ -53,9 +54,11 @@ class SocketManagerSignaling: NSObject {
                 }
         }
         socket?.on(clientEvent: .connect) { _, _ in
+            self.isConnected = true
             completion(.connected)
         }
         socket?.on(clientEvent: .disconnect) { _, _ in
+            self.isConnected = false
             completion(.disconnected)
         }
 
@@ -73,7 +76,7 @@ class SocketManagerSignaling: NSObject {
     }
     
     func muteCall(_ mute: Bool) {
-        self.webrtcManager.setMicEnabled(mute);
+        self.webrtcManager.setMicEnabled(!mute);
     }
 
     private func registerHandlers() {
@@ -132,6 +135,7 @@ class SocketManagerSignaling: NSObject {
         }
         socket?.on("RINGING_OK") {_, _ in
             self.onCallStateChanged(.ringing_ok)
+            print("ringing")
         }
         socket?.on("MISSED_CALL") {_, _ in
             self.onCallStateChanged(.ended)
@@ -176,7 +180,9 @@ class SocketManagerSignaling: NSObject {
     }
 
     func send(event: String, data: [String: Any]) {
-        socket?.emit(event, data)
+        if (self.isConnected) {
+            socket?.emit(event, data)
+        }
     }
 
     func disconnect() {

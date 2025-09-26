@@ -11,11 +11,12 @@ public class CicareSdkCall {
         "call_calling": "Calling...",
         "call_initializing": "Initializing...",
         "call_connecting": "Connecting...",
+        "call_connected": "Connected",
         "call_ringing": "Ringing...",
         "call_refused": "Decline",
         "call_end": "End Call",
         "call_incoming": "Incoming",
-        "call_name_title": "Green SM Driver",
+        //"call_name_title": "Green SM Driver",
         "call_temporarily_unavailable": "Currently unreachable",
         "call_lost_connection": "Connection lost",
         "call_weak_signal": "Weak Signal",
@@ -85,30 +86,53 @@ public class CicareSdkCall {
     public func incoming(
         callerId: String,
         callerName: String = "Green SM Driver",
-        callerAvatar: String,
+        callerAvatar: String = "",
         calleeId: String,
-        calleeName: String = "Green SM Customer",
-        calleeAvatar: String,
+        calleeName: String = " Green SM Customer",
+        calleeAvatar: String = "",
         checkSum: String,
-        server: String,
-        token: String,
-        isFormPhone: Bool,
         metaData: [String: String]?,
         onMessageClicked: (() -> Void)? = nil
     ) {
-        self.metaData["call_name_title"] = metaData?["call_name_title"] ?? "Green SM Driver"
-        let callerName = callerName == "" ? "Green SM Driver" : callerName
-        _ = calleeName == "" ? "Green SM Customer" : calleeName
-        let merged = self.metaData.merging(metaData ?? self.metaData) { _, new in new }
-                CallService.sharedInstance.reportIncomingCall(
-                    callerName: callerName,
-                    avatarUrl: callerAvatar,
-                    metaData: merged,
-                    server: server,
-                    tokenCall: token,
-                    isFromPhone: isFormPhone,
-                    onMessageClicked: onMessageClicked
-                )
+        
+        if var base64String = metaData?["alert_data"] as? String {
+            if let range = base64String.range(of: "base64,") {
+                base64String = String(base64String[range.upperBound...])
+            }
+            
+            base64String = base64String.trimmingCharacters(in: .whitespacesAndNewlines)
+            
+            let remainder = base64String.count % 4
+            if remainder > 0 {
+                base64String += String(repeating: "=", count: 4 - remainder)
+            }
+            
+            if let decodedData = Data(base64Encoded: base64String, options: .ignoreUnknownCharacters) {
+                do {
+                    
+                    if let jsonObject = try JSONSerialization.jsonObject(with: decodedData, options: []) as? [String: Any] {
+                        self.metaData["call_name_title"] = callerName
+                        
+                        let callerName = callerName == "" ? "Green SM Driver" : callerName
+                        _ = calleeName == "" ? "Green SM Customer" : calleeName
+                        let merged = self.metaData.merging(metaData ?? self.metaData) { _, new in new }
+                        CallService.sharedInstance.reportIncomingCall(
+                            callerName: callerName,
+                            avatarUrl: callerAvatar,
+                            metaData: merged,
+                            server: jsonObject["server"] as! String,
+                            tokenCall: jsonObject["token"] as! String,
+                            isFromPhone: (jsonObject["isFromPhone"] as! Int) == 1,
+                            onMessageClicked: onMessageClicked
+                        )
+                    }
+                } catch {
+                    print("Failed to decode JSON: \(error)")
+                }
+            } else {
+                print("Failed to decode Base64 string")
+            }
+        }
         //self.showCallScreen(calleeName: callerName, callStatus: CallStatus.incoming.rawValue, avatarUrl: callerAvatar, metaData: merged)
     }
 
@@ -122,10 +146,10 @@ public class CicareSdkCall {
         checkSum: String,
         metaData: [String: String]?
     ) {
-        self.metaData["call_name_title"] = metaData?["call_name_title"] ?? "Green SM Customer"
         let merged = self.metaData.merging(metaData ?? self.metaData) { _, new in new }
         let callerName = callerName == "" ? "Green SM Driver" : callerName
         let calleeName = calleeName == "" ? "Green SM Customer" : calleeName
+        self.metaData["call_name_title"] = calleeName
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             CallService.sharedInstance.makeCall(handle: callerId, calleeName: calleeName, metaData: merged, callData: CallSessionRequest(
                 callerId: callerId,
