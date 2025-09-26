@@ -87,6 +87,7 @@ final class APIService: NSObject {
                 completion(.failure(.invalidResponse(error ?? nil)))
                 return
             }
+            print("status code: \(http.statusCode)")
             // Cek status code
             switch http.statusCode {
             case 200...299:

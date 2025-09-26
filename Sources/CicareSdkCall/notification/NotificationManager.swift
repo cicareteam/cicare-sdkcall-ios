@@ -16,7 +16,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             } else if !granted {
                 print("Notification permission denied")
             } else {
-                print("Notification permission granted")
+                //print("Notification permission granted")
             }
         }
         configureNotificationCategories()
