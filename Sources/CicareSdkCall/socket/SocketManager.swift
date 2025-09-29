@@ -1,5 +1,5 @@
 import Foundation
-import SocketIO
+internal import SocketIO
 import WebRTC
 
 protocol CallEventListener: AnyObject {
@@ -45,7 +45,7 @@ class SocketManagerSignaling: NSObject {
         manager = SocketManager(socketURL: wssUrl,
                                     config: [.log(false),
                                              .compress,
-                                             .reconnects(true),
+                                             //.reconnects(true),
                                              .connectParams(["token": token])])
         socket = manager?.socket(forNamespace: "/")
         socket?.on(clientEvent: .statusChange) { data, _ in
@@ -60,6 +60,8 @@ class SocketManagerSignaling: NSObject {
         socket?.on(clientEvent: .disconnect) { _, _ in
             self.isConnected = false
             completion(.disconnected)
+            self.manager = nil
+            self.socket = nil
         }
         socket?.on(clientEvent: .error) { _, _ in
             self.isConnected = false
@@ -192,14 +194,19 @@ class SocketManagerSignaling: NSObject {
     func disconnect() {
         webrtcManager.close()
         if (self.isConnected) {
+            print("disconnecting")
+            socket?.removeAllHandlers()
             socket?.disconnect()
         }
+        socket = nil
+        manager = nil
+        isConnected = false
     }
     
     func onCallStateChanged(_ state: CallStatus) {
-        CallService.sharedInstance.postCallStatus(state)
         switch state {
         case .ringing_ok:
+            CallService.sharedInstance.postCallStatus(state)
             break;
             //CallService.sharedInstance.ringing()
         case .missed:
@@ -213,12 +220,15 @@ class SocketManagerSignaling: NSObject {
             CallService.sharedInstance.endCall()
             break
         case .refused:
+            CallService.sharedInstance.postCallStatus(state)
             //CallService.sharedInstance.declineCall()
             break
         case .busy:
+            CallService.sharedInstance.postCallStatus(state)
             //CallService.sharedInstance.busyCall()
             break
         default:
+            CallService.sharedInstance.postCallStatus(state)
             break
         }
     }

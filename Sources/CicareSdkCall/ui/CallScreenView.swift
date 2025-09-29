@@ -155,7 +155,7 @@ public class CallScreenViewController: UIViewController {
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_end"]
                 //self.endedCall()
             default:
-                print(status)
+                break;
             }
         }
         self.status = status
@@ -175,15 +175,14 @@ public class CallScreenViewController: UIViewController {
 
     func endedCall(delay: Double = 1.5) {
         if (!dismissed) {
-            print("set call screen dismiss")
             self.isConnected = false
             self.callDurationTimer?.invalidate()
             self.muteButton.isEnabled = false
             self.speakerButton.isEnabled = false
             self.endButton.isEnabled = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                self?.dismiss(animated: true) {
-                    self?.dismissed = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
+                self.dismiss(animated: true) {
+                    self.dismissed = true
                     print("call screen dismissed")
                     CallService.sharedInstance.callVC = nil
                 }

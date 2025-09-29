@@ -13,7 +13,7 @@ source 'https://github.com/CocoaPods/Specs.git'
 
 target 'YourAppTarget' do
   use_frameworks!
-  pod 'CiCareSDKCallIOS', '1.2.1-rc.2'
+  pod 'CiCareSDKCallIOS', '1.2.1-rc.3'
 end
 ````
 
@@ -160,7 +160,7 @@ CicareSdkCall.shared.outgoing(
 ## 🔗 References
 
 * CocoaPods: [https://cocoapods.org/pods/CiCareSDKCallIOS](https://cocoapods.org/pods/CiCareSDKCallIOS)
-* Latest version: **1.2.1-rc.2**
+* Latest version: **1.2.1-rc.3**
 * Apple Docs:
 
   * [Push Notifications](https://developer.apple.com/documentation/usernotifications)

@@ -3,6 +3,7 @@ import UIKit
 import CallKit
 import AVFoundation
 import PushKit
+import SwiftUI
 
 protocol CallManagerDelegate : AnyObject {
     
@@ -49,7 +50,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     var callController : CXCallController?
     var currentCall : UUID?
     let callObserver = CXCallObserver()
-    var callVC: CallScreenViewController?
+    var callVC: UIViewController?
     
     var callStatus : CallStatus = .connecting
     
@@ -292,7 +293,10 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     func endCall() {
         SocketManagerSignaling.shared.send(event: "REQUEST_HANGUP", data: [:])
-        self.postCallStatus(.ended)
+        if (callStatus != .ended) {
+            callStatus = .ended
+            self.postCallStatus(.ended)
+        }
         if let uuid = currentCall {
             let endCallAction = CXEndCallAction.init(call:uuid)
             let transaction = CXTransaction.init()
@@ -399,6 +403,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         //todo: configure audio session
         //todo: start network call
+        callStatus = .connected
         provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: nil)
         provider.reportOutgoingCall(with: action.callUUID, connectedAt: nil)
         delegate?.callDidAnswer()
@@ -433,7 +438,10 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         } else if (callStatus == .connecting || callStatus == .calling) {
             SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
         }
-        self.postCallStatus(.ended)
+        if (callStatus != .ended) {
+            callStatus = .ended
+            self.postCallStatus(.ended)
+        }
         currentCall = nil
         SocketManagerSignaling.shared.disconnect()
         delegate?.callDidEnd()
@@ -495,38 +503,47 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     private func topViewController() -> UIViewController? {
         if #available(iOS 13.0, *) {
             // iOS 13 ke atas pakai connectedScenes
-            let scenes = UIApplication.shared.connectedScenes
+            return UIApplication.shared
+                .connectedScenes
                 .compactMap { $0 as? UIWindowScene }
-            for scene in scenes {
-                if let rootVC = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController {
-                    return rootVC
-                }
-            }
+                .flatMap { $0.windows }
+                .first(where: { $0.isKeyWindow })?
+                .rootViewController
         } else {
             // iOS 12 ke bawah pakai keyWindow
             return UIApplication.shared.keyWindow?.rootViewController
         }
-        return nil
     }
 
     private func showCallScreen(callStatus: String) {
         DispatchQueue.main.async {
-            self.callVC = CallScreenViewController(onMessageClicked: self.onMessageClicked)
-            self.callVC?.modalPresentationStyle = .fullScreen
-            self.callVC?.callStatus = callStatus
-            self.callVC?.calleeName = self.callerName ?? ""
-            self.callVC?.avatarUrl = self.callerAvatar ?? ""
-            self.callVC?.metaData = self.metaData!
-            
-            if let callvc = self.callVC {
-                if let rootVC = self.topViewController() {
-                    if let nav = rootVC as? UINavigationController {
-                            nav.pushViewController(callvc, animated: true)
-                    } else {
-                        rootVC.present(callvc, animated: true, completion: nil)
-                    }
-                } else {
-                    print("⚠️ RootViewController not ready yet")
+           
+            guard let rootVC = self.topViewController() else {
+                print("⚠️ RootViewController not ready yet")
+                return
+            }
+            if #available(iOS 13.0, *) {
+                let hosting = UIHostingController(rootView: CallScreenWrapper(
+                    calleeName: self.callerName ?? "",
+                    callStatus: callStatus,
+                    avatarUrl: self.callerAvatar,
+                    metaData: self.metaData!
+                ))
+                hosting.modalPresentationStyle = .fullScreen
+                self.callVC = hosting
+                if let vc = self.callVC {
+                    rootVC.present(vc, animated: true)
+                }
+            } else {
+                let screen = CallScreenViewController(onMessageClicked: self.onMessageClicked)
+                screen.modalPresentationStyle = .fullScreen
+                screen.callStatus = callStatus
+                screen.calleeName = self.callerName ?? ""
+                screen.avatarUrl = self.callerAvatar ?? ""
+                screen.metaData = self.metaData!
+                self.callVC = screen
+                if let vc = self.callVC {
+                    rootVC.present(vc, animated: true, completion: nil)
                 }
             }
         }

@@ -44,6 +44,7 @@ class WebRTCManager: NSObject {
     }
 
     private func createPeerConnection() {
+        print("peer created")
         let config = RTCConfiguration()
         config.iceServers = iceServers
         config.sdpSemantics = .unifiedPlan
