@@ -433,7 +433,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         } else if (callStatus == .connecting || callStatus == .calling) {
             SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
         }
-        print("mati lagi")
         self.postCallStatus(.ended)
         currentCall = nil
         SocketManagerSignaling.shared.disconnect()
@@ -482,15 +481,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             
         } catch {
             print("❌ Audio session error: \(error)")
-            do {
-                let session = AVAudioSession.sharedInstance()
-                try session.setCategory(.playAndRecord,
-                                        mode: .voiceChat,
-                                        options: [.allowBluetooth])
-                try session.setActive(true)
-            } catch {
-                print("Failed to set audio session:", error)
-            }
         }
     }
     

@@ -78,7 +78,7 @@ public class CicareSdkCall {
     ]
     
             
-    public init() {
+    private init() {
         _ = NotificationManager.shared
     }
     
