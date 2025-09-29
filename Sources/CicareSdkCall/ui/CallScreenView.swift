@@ -175,15 +175,16 @@ public class CallScreenViewController: UIViewController {
 
     func endedCall(delay: Double = 1.5) {
         if (!dismissed) {
+            print("set call screen dismiss")
             self.isConnected = false
             self.callDurationTimer?.invalidate()
             self.muteButton.isEnabled = false
             self.speakerButton.isEnabled = false
             self.endButton.isEnabled = false
-            print("dismiss call screen")
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
                 self?.dismiss(animated: true) {
                     self?.dismissed = true
+                    print("call screen dismissed")
                     CallService.sharedInstance.callVC = nil
                 }
             }
