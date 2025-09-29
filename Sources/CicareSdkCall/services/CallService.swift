@@ -49,6 +49,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     var callController : CXCallController?
     var currentCall : UUID?
     let callObserver = CXCallObserver()
+    var callVC: CallScreenViewController?
     
     var callStatus : CallStatus = .connecting
     
@@ -101,9 +102,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         callerName: String,
         avatarUrl: String,
         metaData: [String:String],
-        server: String,
-        tokenCall: String,
-        isFromPhone: Bool,
         onMessageClicked: (() -> Void)? = nil
     ) {
         
@@ -111,17 +109,39 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         self.callerName = callerName
         self.callerAvatar = avatarUrl
         self.metaData = metaData
-        self.server = server
-        self.token = tokenCall
-        self.isFromPhone = isFromPhone
-        if let url = URL(string: server) {
-            SocketManagerSignaling.shared.connect(wssUrl: url, token: token) { status in
+        self.ringing()
+        
+        if var base64String = self.metaData?["alert_data"] as? String {
+            if let range = base64String.range(of: "base64,") {
+                base64String = String(base64String[range.upperBound...])
+            }
+            base64String = base64String.trimmingCharacters(in: .whitespacesAndNewlines)
+            let remainder = base64String.count % 4
+            if remainder > 0 {
+                base64String += String(repeating: "=", count: 4 - remainder)
+            }
+            if let decodedData = Data(base64Encoded: base64String, options: .ignoreUnknownCharacters) {
+                do {
+                    if let jsonObject = try JSONSerialization.jsonObject(with: decodedData, options: []) as? [String: Any] {
+                        self.server = jsonObject["server"] as! String
+                        self.token = jsonObject["token"] as! String
+                        self.isFromPhone = (jsonObject["isFromPhone"] != nil)
+                    }
+                } catch {
+                    print("Failed to decode JSON: \(error)")
+                }
+            }
+        }
+        if let url = URL(string: self.server) {
+            SocketManagerSignaling.shared.connect(wssUrl: url, token: self.token) { status in
                 if status == .connected {
                     SocketManagerSignaling.shared.ringingCall()
                 } else {
                     self.endCall()
                 }
             }
+        } else {
+            self.endCall()
         }
     }
     
@@ -307,7 +327,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             let transaction = CXTransaction()
             transaction.addAction(endCallAction)
             requestTransaction(transaction: transaction){ succes in
-                self.postCallStatus(.ended)
+                //self.postCallStatus(.ended)
             }
         }
     }
@@ -413,6 +433,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         } else if (callStatus == .connecting || callStatus == .calling) {
             SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
         }
+        print("mati lagi")
         self.postCallStatus(.ended)
         currentCall = nil
         SocketManagerSignaling.shared.disconnect()
@@ -500,21 +521,23 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
 
     private func showCallScreen(callStatus: String) {
         DispatchQueue.main.async {
-            let callVC = CallScreenViewController(onMessageClicked: self.onMessageClicked)
-            callVC.modalPresentationStyle = .fullScreen
-            callVC.callStatus = callStatus
-            callVC.calleeName = self.callerName ?? ""
-            callVC.avatarUrl = self.callerAvatar ?? ""
-            callVC.metaData = self.metaData!
-
-            if let rootVC = self.topViewController() {
-                if let nav = rootVC as? UINavigationController {
-                    nav.pushViewController(callVC, animated: true)
+            self.callVC = CallScreenViewController(onMessageClicked: self.onMessageClicked)
+            self.callVC?.modalPresentationStyle = .fullScreen
+            self.callVC?.callStatus = callStatus
+            self.callVC?.calleeName = self.callerName ?? ""
+            self.callVC?.avatarUrl = self.callerAvatar ?? ""
+            self.callVC?.metaData = self.metaData!
+            
+            if let callvc = self.callVC {
+                if let rootVC = self.topViewController() {
+                    if let nav = rootVC as? UINavigationController {
+                            nav.pushViewController(callvc, animated: true)
+                    } else {
+                        rootVC.present(callvc, animated: true, completion: nil)
+                    }
                 } else {
-                    rootVC.present(callVC, animated: true, completion: nil)
+                    print("⚠️ RootViewController not ready yet")
                 }
-            } else {
-                print("⚠️ RootViewController not ready yet")
             }
         }
     }

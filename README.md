@@ -13,7 +13,7 @@ source 'https://github.com/CocoaPods/Specs.git'
 
 target 'YourAppTarget' do
   use_frameworks!
-  pod 'CiCareSDKCallIOS', '1.2.0-rc.8.3'
+  pod 'CiCareSDKCallIOS', '1.2.1-rc.1'
 end
 ````
 
@@ -27,7 +27,7 @@ pod install
 
 ## ⚙ iOS Setup Requirements
 
-### 1. Enable Push Notification & VOIP
+### 1. Enable Push Notification & VoIP
 
 1. Open your Xcode project settings → **Signing & Capabilities**.
 2. Add the following capabilities:
@@ -78,11 +78,10 @@ Import module:
 import CicareSdkCall
 ```
 
-Before starting a call, initialize the SDK and configure the API:
+Before starting a call, configure the API:
 
 ```swift
-let cicare = CicareSdkCall()
-cicare.setAPI(baseUrl: "https://your-api-url.com", token: "your-api-token")
+CicareSdkCall.shared.setAPI(baseUrl: "https://your-api-url.com", token: "your-api-token")
 ```
 
 ---
@@ -93,9 +92,7 @@ Use the following code to start an outgoing call:
 
 ```swift
 func makeCall() {
-    let cicare = CicareSdkCall()
-    
-    cicare.outgoing(
+    CicareSdkCall.shared.outgoing(
         callerId: "2",
         callerName: "Halis",
         callerAvatar: "https://avatar.iran.liara.run/public/boy",
@@ -112,12 +109,10 @@ func makeCall() {
 
 ### 3. Handle Incoming Calls
 
-To display an incoming call, add the following code when handling the voip type APNs notification:
+To display an incoming call, add the following code when handling the VoIP type APNs notification:
 
 ```swift
-let cicare = CicareSdkCall()
-
-cicare.incoming(
+CicareSdkCall.shared.incoming(
     callerId: "2",
     callerName: "Halis",
     callerAvatar: "https://avatar.iran.liara.run/public/boy",
@@ -125,14 +120,13 @@ cicare.incoming(
     calleeName: "Anas",
     calleeAvatar: "https://avatar.iran.liara.run/public",
     checkSum: "asdfasdf",
-    server: "https://sip-gw.c-icare.cc:8443",
-    token: token,
-    isFormPhone: false,
     metaData: [:]
 ) {
-print("on message button clicked")
+    print("on message button clicked")
 }
 ```
+
+> **Note**: `metaData["alert_data"]` is required.
 
 ---
 
@@ -149,7 +143,7 @@ let meta: [String: String] = [
     "call_weak_signal": "Weak signal"
 ]
 
-cicare.outgoing(
+CicareSdkCall.shared.outgoing(
     callerId: "2",
     callerName: "Halis",
     callerAvatar: "https://avatar.iran.liara.run/public/boy",
@@ -166,7 +160,7 @@ cicare.outgoing(
 ## 🔗 References
 
 * CocoaPods: [https://cocoapods.org/pods/CiCareSDKCallIOS](https://cocoapods.org/pods/CiCareSDKCallIOS)
-* Latest version: **1.2.0-rc.8.3**
+* Latest version: **1.2.1-rc.1**
 * Apple Docs:
 
   * [Push Notifications](https://developer.apple.com/documentation/usernotifications)
@@ -177,7 +171,7 @@ cicare.outgoing(
 
 ## 🛠 Notes
 
+* `CicareSdkCall` is a **singleton**, always use `CicareSdkCall.shared` instead of creating a new instance.
 * Ensure **APNs VoIP certificate** or **token authentication** is correctly set up.
 * Test notifications and calls on a **real device** (VoIP push is not supported in simulators).
 * Make sure to request microphone permission before initiating a call.
-

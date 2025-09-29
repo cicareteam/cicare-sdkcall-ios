@@ -170,8 +170,11 @@ class WebRTCManager: NSObject {
     }
 
     func close() {
-        peerConnection.close()
-        RTCShutdownInternalTracer()
+        if (peerConnection.iceConnectionState == .connected ||
+            peerConnection.iceConnectionState == .completed) {
+            peerConnection.close()
+            RTCShutdownInternalTracer()
+        }
     }
 }
 
