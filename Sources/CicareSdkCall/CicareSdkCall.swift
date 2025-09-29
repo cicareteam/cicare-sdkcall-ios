@@ -5,6 +5,10 @@ import SwiftUI
 
 public class CicareSdkCall {
     
+    public static let shared: CicareSdkCall = CicareSdkCall()
+    
+    private var vc: UIViewController?
+    
     private var metaData: [String: String] = [
         "call_title": "Free Call",
         "call_busy": "The customer is busy and cannot be reached",
@@ -91,48 +95,20 @@ public class CicareSdkCall {
         calleeName: String = " Green SM Customer",
         calleeAvatar: String = "",
         checkSum: String,
-        metaData: [String: String]?,
+        metaData: [String: String],
         onMessageClicked: (() -> Void)? = nil
     ) {
+        self.metaData["call_name_title"] = callerName
         
-        if var base64String = metaData?["alert_data"] as? String {
-            if let range = base64String.range(of: "base64,") {
-                base64String = String(base64String[range.upperBound...])
-            }
-            
-            base64String = base64String.trimmingCharacters(in: .whitespacesAndNewlines)
-            
-            let remainder = base64String.count % 4
-            if remainder > 0 {
-                base64String += String(repeating: "=", count: 4 - remainder)
-            }
-            
-            if let decodedData = Data(base64Encoded: base64String, options: .ignoreUnknownCharacters) {
-                do {
-                    
-                    if let jsonObject = try JSONSerialization.jsonObject(with: decodedData, options: []) as? [String: Any] {
-                        self.metaData["call_name_title"] = callerName
-                        
-                        let callerName = callerName == "" ? "Green SM Driver" : callerName
-                        _ = calleeName == "" ? "Green SM Customer" : calleeName
-                        let merged = self.metaData.merging(metaData ?? self.metaData) { _, new in new }
-                        CallService.sharedInstance.reportIncomingCall(
-                            callerName: callerName,
-                            avatarUrl: callerAvatar,
-                            metaData: merged,
-                            server: jsonObject["server"] as! String,
-                            tokenCall: jsonObject["token"] as! String,
-                            isFromPhone: (jsonObject["isFromPhone"] as! Int) == 1,
-                            onMessageClicked: onMessageClicked
-                        )
-                    }
-                } catch {
-                    print("Failed to decode JSON: \(error)")
-                }
-            } else {
-                print("Failed to decode Base64 string")
-            }
-        }
+        let callerName = callerName == "" ? "Green SM Driver" : callerName
+        _ = calleeName == "" ? "Green SM Customer" : calleeName
+        let merged = self.metaData.merging(metaData) { _, new in new }
+        CallService.sharedInstance.reportIncomingCall(
+            callerName: callerName,
+            avatarUrl: callerAvatar,
+            metaData: merged,
+            onMessageClicked: onMessageClicked
+        )
         //self.showCallScreen(calleeName: callerName, callStatus: CallStatus.incoming.rawValue, avatarUrl: callerAvatar, metaData: merged)
     }
 
@@ -144,12 +120,12 @@ public class CicareSdkCall {
         calleeName: String = "Green SM Customer",
         calleeAvatar: String,
         checkSum: String,
-        metaData: [String: String]?
+        metaData: [String: String]
     ) {
-        let merged = self.metaData.merging(metaData ?? self.metaData) { _, new in new }
         let callerName = callerName == "" ? "Green SM Driver" : callerName
         let calleeName = calleeName == "" ? "Green SM Customer" : calleeName
-        self.metaData["call_name_title"] = calleeName
+        var merged = metaData.merging(metaData) { _, new in new }
+        merged["call_name_title"] = calleeName
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             CallService.sharedInstance.makeCall(handle: callerId, calleeName: calleeName, metaData: merged, callData: CallSessionRequest(
                 callerId: callerId,
@@ -161,7 +137,7 @@ public class CicareSdkCall {
                 checkSum: checkSum
             ))
         }
-        self.showCallScreen(
+        showCallScreen(
             calleeName: calleeName,
             callStatus: CallStatus.connecting.rawValue,
             avatarUrl: calleeAvatar,
@@ -189,28 +165,31 @@ public class CicareSdkCall {
             }
             
             if #available(iOS 13.0, *) {
-                let vc = UIHostingController(rootView: CallScreenWrapper(
+                let hosting = UIHostingController(rootView: CallScreenWrapper(
                     calleeName: calleeName,
                     callStatus: callStatus,
                     avatarUrl: avatarUrl,
                     metaData: metaData
                 ))
-                vc.modalPresentationStyle = .fullScreen
-                topVC.present(vc, animated: true)
+                hosting.modalPresentationStyle = .fullScreen
+                self.vc = hosting
+                if let vc = self.vc {
+                    topVC.present(vc, animated: true)
+                }
             } else {
-                let vc = CallScreenViewController()
-                vc.calleeName = calleeName
-                vc.callStatus = callStatus
-                vc.avatarUrl = avatarUrl
-                vc.metaData = metaData
-                vc.modalPresentationStyle = .fullScreen
-                topVC.present(vc, animated: true)
+                let screen = CallScreenViewController()
+                screen.calleeName = calleeName
+                screen.callStatus = callStatus
+                screen.avatarUrl = avatarUrl
+                screen.metaData = metaData
+                screen.modalPresentationStyle = .fullScreen
+                self.vc = screen
+                if let vc = self.vc {
+                    topVC.present(vc, animated: true)
+                }
             }
         }
     }
-
-
-    
 }
 
 struct CallScreenWrapper: UIViewControllerRepresentable {

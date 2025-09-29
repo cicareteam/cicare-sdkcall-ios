@@ -61,6 +61,10 @@ class SocketManagerSignaling: NSObject {
             self.isConnected = false
             completion(.disconnected)
         }
+        socket?.on(clientEvent: .error) { _, _ in
+            self.isConnected = false
+            completion(.disconnected)
+        }
 
 
         registerHandlers()
@@ -187,14 +191,17 @@ class SocketManagerSignaling: NSObject {
 
     func disconnect() {
         webrtcManager.close()
-        socket?.disconnect()
+        if (self.isConnected) {
+            socket?.disconnect()
+        }
     }
     
     func onCallStateChanged(_ state: CallStatus) {
         CallService.sharedInstance.postCallStatus(state)
         switch state {
         case .ringing_ok:
-            CallService.sharedInstance.ringing()
+            break;
+            //CallService.sharedInstance.ringing()
         case .missed:
             CallService.sharedInstance.missed()
         case .connected:
@@ -206,10 +213,10 @@ class SocketManagerSignaling: NSObject {
             CallService.sharedInstance.endCall()
             break
         case .refused:
-            CallService.sharedInstance.declineCall()
+            //CallService.sharedInstance.declineCall()
             break
         case .busy:
-            CallService.sharedInstance.busyCall()
+            //CallService.sharedInstance.busyCall()
             break
         default:
             break

@@ -9,6 +9,7 @@ public class CallScreenViewController: UIViewController {
     var callStatus: String = ""
     var avatarUrl: String? = ""
     var metaData: [String: String] = [:]
+    var dismissed = true
     
     let monitor = NWPathMonitor()
     let queue = DispatchQueue.global(qos: .background)
@@ -127,7 +128,7 @@ public class CallScreenViewController: UIViewController {
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? statusString
             case .ended:
                 self.statusLabel.text = self.metaData["call_end"] ?? "call_end"
-                self.endedCall()
+                self.endedCall(delay: 0.5)
             case .connected:
                 self.isConnected = true
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? statusString
@@ -146,13 +147,13 @@ public class CallScreenViewController: UIViewController {
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_connecting"]
             case .busy:
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_busy"]
-                self.endedCall(delay: 1.5)
+                //self.endedCall(delay: 1.5)
             case .refused:
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_refused"]
-                self.endedCall(delay: 1.5)
+                //self.endedCall(delay: 1.5)
             case .cancel:
                 self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_end"]
-                self.endedCall()
+                //self.endedCall()
             default:
                 print(status)
             }
@@ -173,14 +174,21 @@ public class CallScreenViewController: UIViewController {
     }
 
     func endedCall(delay: Double = 1.5) {
-        self.isConnected = false
-        self.callDurationTimer?.invalidate()
-        self.muteButton.isEnabled = false
-        self.speakerButton.isEnabled = false
-        self.endButton.isEnabled = false
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-            self?.dismiss(animated: true, completion: nil)
+        if (!dismissed) {
+            self.isConnected = false
+            self.callDurationTimer?.invalidate()
+            self.muteButton.isEnabled = false
+            self.speakerButton.isEnabled = false
+            self.endButton.isEnabled = false
+            print("dismiss call screen")
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
+                self?.dismiss(animated: true) {
+                    self?.dismissed = true
+                    CallService.sharedInstance.callVC = nil
+                }
+            }
         }
+        SocketManagerSignaling.shared.disconnect()
     }
     
     deinit {
@@ -197,6 +205,7 @@ public class CallScreenViewController: UIViewController {
     }
     
     private func setupUI() {
+        self.dismissed = false
         let titleLabel = UILabel()
         titleLabel.text = metaData["call_title"] ?? "Call Free"
         titleLabel.font = UIFont.boldSystemFont(ofSize: 22)
@@ -424,6 +433,8 @@ public class CallScreenViewController: UIViewController {
         ) {
             if CallState.shared.currentCallUUID != nil {
                 CallService.sharedInstance.declineCall()
+            } else {
+                self.endedCall()
             }
         }
         endCallButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
@@ -522,6 +533,8 @@ public class CallScreenViewController: UIViewController {
                 if CallService.sharedInstance.currentCall != nil {
                     self.isConnected = false
                     CallService.sharedInstance.endCall()
+                } else {
+                    self.endedCall()
                 }
             }
             // Handle end call action here
