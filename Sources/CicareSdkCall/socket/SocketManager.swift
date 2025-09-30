@@ -15,14 +15,13 @@ class SocketManagerSignaling: NSObject {
     
     public static let shared = SocketManagerSignaling()
     
-    private let webrtcManager: WebRTCManager = WebRTCManager.init()
+    private var webrtcManager: WebRTCManager?
     private var manager: SocketManager?
     private var socket: SocketIOClient?
     private var isConnected: Bool = false
 
     private override init() {
         super.init()
-        self.webrtcManager.callback = self
     }
     
     func convertToWebSocket(url: URL) -> URL? {
@@ -42,10 +41,12 @@ class SocketManagerSignaling: NSObject {
     }
 
     func connect(wssUrl: URL, token: String, completion: @escaping (SocketIOClientStatus) -> Void) {
+        self.webrtcManager = WebRTCManager()
+        self.webrtcManager?.callback = self
         manager = SocketManager(socketURL: wssUrl,
                                     config: [.log(false),
                                              .compress,
-                                             //.reconnects(true),
+                                             .reconnects(true),
                                              .connectParams(["token": token])])
         socket = manager?.socket(forNamespace: "/")
         socket?.on(clientEvent: .statusChange) { data, _ in
@@ -55,6 +56,7 @@ class SocketManagerSignaling: NSObject {
         }
         socket?.on(clientEvent: .connect) { _, _ in
             self.isConnected = true
+            //print("connected")
             completion(.connected)
         }
         socket?.on(clientEvent: .disconnect) { _, _ in
@@ -82,7 +84,7 @@ class SocketManagerSignaling: NSObject {
     }
     
     func muteCall(_ mute: Bool) {
-        self.webrtcManager.setMicEnabled(!mute);
+        self.webrtcManager?.setMicEnabled(!mute);
     }
 
     private func registerHandlers() {
@@ -91,35 +93,93 @@ class SocketManagerSignaling: NSObject {
         socket?.on(clientEvent: .statusChange) { data, _ in
         }
         socket?.on("INIT_OK") { _, _ in
-            if (!self.webrtcManager.isPeerConnectionActive()) {
-                self.webrtcManager.reinit()
-            }
-            self.webrtcManager.initMic()
-            self.onCallStateChanged(.calling)
-            self.webrtcManager.createOffer { result in
-                switch result {
-                case .success(let sdpDesc):
-                    let sdpPayload: [String: String] = [
-                        "type": "offer",
-                        "sdp": sdpDesc.sdp
-                    ]
-                    let payload: [String: Any] = [
-                        "is_caller": true,
-                        "sdp": sdpPayload
-                    ]
-                    self.send(event: "SDP_OFFER", data: payload)
-                case .failure(let error):
-                    print("Failed to create offer:", error.localizedDescription)
+            /*if let webrtc = self.webrtcManager {
+                if (!webrtc.isPeerConnectionActive()) {
+                    webrtc.reinit()
                 }
-            }
+                webrtc.initMic()
+                self.onCallStateChanged(.calling)
+                webrtc.createOffer { result in
+                    switch result {
+                    case .success(let sdpDesc):
+                        let sdpPayload: [String: String] = [
+                            "type": "offer",
+                            "sdp": sdpDesc.sdp
+                        ]
+                        let payload: [String: Any] = [
+                            "is_caller": true,
+                            "sdp": sdpPayload
+                        ]
+                        self.send(event: "SDP_OFFER", data: payload)
+                    case .failure(let error):
+                        print("Failed to create offer:", error.localizedDescription)
+                    }
+                }
+            }*/
         }
         socket?.on("ANSWER_OK") { _, _ in
-            if (!self.webrtcManager.isPeerConnectionActive()) {
-                self.webrtcManager.reinit()
+            //print("answer_ok")
+            CallService.sharedInstance.connected()
+        }
+        socket?.on("MISSED_CALL") {_, _ in
+            self.onCallStateChanged(.missed)
+        }
+        socket?.on("RINGING_OK") {_, _ in
+            self.onCallStateChanged(.ringing_ok)
+            CallService.sharedInstance.isSignalingReady = true
+        }
+        socket?.on("MISSED_CALL") {_, _ in
+            self.onCallStateChanged(.ended)
+        }
+        socket?.on("ACCEPTED") { _, _ in
+        }
+        socket?.on("CONNECTED") { _, _ in
+            self.onCallStateChanged(.connected)
+            self.socket?.emit("CONNECTED")
+        }
+        socket?.on("RINGING") { _, _ in
+            self.onCallStateChanged(.ringing)
+        }
+        socket?.on("HANGUP") { _, _ in
+            self.onCallStateChanged(.ended)
+            self.send(event: "CLEARING_SESSION", data: [:])
+            self.disconnect()
+        }
+        socket?.on("REJECTED") { _, _ in
+            self.onCallStateChanged(.refused)
+        }
+        socket?.on("BUSY") { _, _ in
+            self.onCallStateChanged(.busy)
+        }
+        socket?.on("SDP_OFFER") { data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let sdpStr = dict["sdp"] as? String else { return }
+            DispatchQueue.main.async {
+                self.onCallStateChanged(.connecting)
+                self.webrtcManager?.initMic()
+                let sdp = RTCSessionDescription(type: .offer, sdp: sdpStr)
+                self.webrtcManager?.setRemoteDescription(sdp: sdp)
             }
-            self.onCallStateChanged(.answering)
-            self.webrtcManager.initMic()
-            self.webrtcManager.createOffer { result in
+        }
+        socket?.on("SLOWLINK") { data, _ in
+            
+        }
+        socket?.on("SDP_ANSWER") { data, _ in
+            guard let dict = data.first as? [String: Any],
+                  let sdpStr = dict["sdp"] as? String else { return }
+            let sdp = RTCSessionDescription(type: .answer, sdp: sdpStr)
+            self.webrtcManager?.setRemoteDescription(sdp: sdp)
+        }
+    }
+    
+    public func initOffer() {
+        if let webrtc = self.webrtcManager {
+            if (!webrtc.isPeerConnectionActive()) {
+                webrtc.reinit()
+            }
+            //self.onCallStateChanged(.answering)
+            webrtc.initMic()
+            webrtc.createOffer { result in
                 switch result {
                 case .success(let sdpDesc):
                     let sdpPayload: [String: Any] = [
@@ -136,68 +196,28 @@ class SocketManagerSignaling: NSObject {
                 }
             }
         }
-        socket?.on("MISSED_CALL") {_, _ in
-            self.onCallStateChanged(.missed)
-        }
-        socket?.on("RINGING_OK") {_, _ in
-            self.onCallStateChanged(.ringing_ok)
-            print("ringing")
-        }
-        socket?.on("MISSED_CALL") {_, _ in
-            self.onCallStateChanged(.ended)
-        }
-        socket?.on("ACCEPTED") { _, _ in
-        }
-        socket?.on("CONNECTED") { _, _ in
-            self.onCallStateChanged(.connected)
-            self.socket?.emit("CONNECTED")
-        }
-        socket?.on("RINGING") { _, _ in
-            self.onCallStateChanged(.ringing)
-        }
-        socket?.on("HANGUP") { _, _ in
-            self.onCallStateChanged(.ended)
-        }
-        socket?.on("REJECTED") { _, _ in
-            self.onCallStateChanged(.refused)
-        }
-        socket?.on("BUSY") { _, _ in
-            self.onCallStateChanged(.busy)
-        }
-        socket?.on("SDP_OFFER") { data, _ in
-            guard let dict = data.first as? [String: Any],
-                  let sdpStr = dict["sdp"] as? String else { return }
-            DispatchQueue.main.async {
-                self.onCallStateChanged(.connecting)
-                self.webrtcManager.initMic()
-                let sdp = RTCSessionDescription(type: .offer, sdp: sdpStr)
-                self.webrtcManager.setRemoteDescription(sdp: sdp)
-            }
-        }
-        socket?.on("SLOWLINK") { data, _ in
-            
-        }
-        socket?.on("SDP_ANSWER") { data, _ in
-            guard let dict = data.first as? [String: Any],
-                  let sdpStr = dict["sdp"] as? String else { return }
-            let sdp = RTCSessionDescription(type: .answer, sdp: sdpStr)
-            self.webrtcManager.setRemoteDescription(sdp: sdp)
-        }
+    }
+    
+    public func releaseWebrtc() {
+        webrtcManager?.close()
+        webrtcManager = nil
     }
 
     func send(event: String, data: [String: Any]) {
         if (self.isConnected) {
+            print("send \(event)")
             socket?.emit(event, data)
         }
     }
 
     func disconnect() {
-        webrtcManager.close()
         if (self.isConnected) {
-            print("disconnecting")
             socket?.removeAllHandlers()
             socket?.disconnect()
+            CallService.sharedInstance.postCallStatus(.ended)
+            CallService.sharedInstance.callVC?.dismiss(animated: true)
         }
+        //
         socket = nil
         manager = nil
         isConnected = false

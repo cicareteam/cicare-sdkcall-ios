@@ -40,6 +40,8 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     private var token: String = ""
     private var isFromPhone: Bool = false
     private var screenIsShown: Bool = false
+    public var isSignalingReady: Bool = false
+    private var pendingAnswerAction: CXAnswerCallAction?
     
     private var audioSession: AVAudioSession?
     
@@ -111,7 +113,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         self.callerName = callerName
         self.callerAvatar = avatarUrl
         self.metaData = metaData
-        self.ringing()
         
         if var base64String = self.metaData?["alert_data"] as? String {
             if let range = base64String.range(of: "base64,") {
@@ -134,6 +135,9 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                 }
             }
         }
+        
+        self.ringing()
+        self.isSignalingReady = false
         if let url = URL(string: self.server) {
             SocketManagerSignaling.shared.connect(wssUrl: url, token: self.token) { status in
                 if status == .connected {
@@ -292,8 +296,20 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         }*/
     }
     
+    public func connected() {
+        if let action = self.pendingAnswerAction {
+            SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
+            //print("answered");
+            self.callStatus = .connected
+            self.postCallStatus(.connected)
+            action.fulfill()
+            self.pendingAnswerAction = nil
+        }
+    }
+    
     func endCall() {
         self.screenIsShown = false
+        self.isSignalingReady = false
         SocketManagerSignaling.shared.send(event: "REQUEST_HANGUP", data: [:])
         if (callStatus != .ended) {
             callStatus = .ended
@@ -313,6 +329,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     func cancelCall() {
         self.screenIsShown = false
+        self.isSignalingReady = false
         SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
         self.postCallStatus(CallStatus.cancel)
         if let uuid = currentCall {
@@ -329,6 +346,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     func declineCall() {
         self.screenIsShown = false
+        self.isSignalingReady = false
         SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
         if let uuid = currentCall {
             let endCallAction = CXEndCallAction(call: uuid)
@@ -342,6 +360,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     func busyCall() {
         self.postCallStatus(.busy)
         self.screenIsShown = false
+        self.isSignalingReady = false
         SocketManagerSignaling.shared.send(event: "BUSY", data: [:])
         NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
         if let uuid = currentCall {
@@ -425,19 +444,30 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         //todo: answer network call
         delegate?.callDidAnswer()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if (!self.isForeground() && !self.screenIsShown) {
+            if (!self.screenIsShown) {
                 self.showCallScreen(callStatus: "connecting")
             }
         }
-        SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
-        callStatus = .connected
-        self.postCallStatus(.connected)
-        action.fulfill()
+        if (isSignalingReady) {
+            //print("signaling ready")
+            self.pendingAnswerAction = nil
+            SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
+            callStatus = .connected
+            self.postCallStatus(.connected)
+            action.fulfill()
+        } else {
+            //print("siganil not ready")
+            callStatus = .connecting
+            self.postCallStatus(.connecting)
+            self.pendingAnswerAction = action
+        }
     }
     
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         self.audioSession = nil
         self.screenIsShown = false
+        self.isSignalingReady = false
+        self.pendingAnswerAction = nil
         if (callStatus == .incoming) {
             SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
             NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
@@ -455,7 +485,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
-        print("Something else held")
+        //print("Something else held")
         if action.isOnHold {
             //todo: stop audio
         } else {
@@ -481,7 +511,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     // Called when an action was not performed in time and has been inherently failed. Depending on the action, this timeout may also force the call to end. An action that has already timed out should not be fulfilled or failed by the provider delegate
     func provider(_ provider: CXProvider, timedOutPerforming action: CXAction) {
         // React to the action timeout if necessary, such as showing an error UI.
-        print("Something else timout")
+        //print("Something else timout")
         action.fulfill()
     }
     
@@ -489,13 +519,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         print("🔊 Audio session activated")
         self.audioSession = audioSession
-        do {
-            try audioSession.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
-            try audioSession.setActive(true)
-            
-        } catch {
-            print("❌ Audio session error: \(error)")
-        }
+        SocketManagerSignaling.shared.initOffer()
     }
     
     func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
@@ -504,6 +528,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
          de-activated after having its priority restored to normal.
          */
         print("🔇 Audio session deactivated")
+        SocketManagerSignaling.shared.releaseWebrtc()
     }
     
     private func topViewController() -> UIViewController? {
