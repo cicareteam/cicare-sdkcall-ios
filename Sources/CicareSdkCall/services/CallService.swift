@@ -39,6 +39,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     private var server: String = ""
     private var token: String = ""
     private var isFromPhone: Bool = false
+    private var screenIsShown: Bool = false
     
     private var audioSession: AVAudioSession?
     
@@ -292,6 +293,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     func endCall() {
+        self.screenIsShown = false
         SocketManagerSignaling.shared.send(event: "REQUEST_HANGUP", data: [:])
         if (callStatus != .ended) {
             callStatus = .ended
@@ -310,6 +312,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     func cancelCall() {
+        self.screenIsShown = false
         SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
         self.postCallStatus(CallStatus.cancel)
         if let uuid = currentCall {
@@ -325,6 +328,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     func declineCall() {
+        self.screenIsShown = false
         SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
         if let uuid = currentCall {
             let endCallAction = CXEndCallAction(call: uuid)
@@ -337,6 +341,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     func busyCall() {
         self.postCallStatus(.busy)
+        self.screenIsShown = false
         SocketManagerSignaling.shared.send(event: "BUSY", data: [:])
         NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
         if let uuid = currentCall {
@@ -420,7 +425,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         //todo: answer network call
         delegate?.callDidAnswer()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            if (!self.isForeground()) {
+            if (!self.isForeground() && !self.screenIsShown) {
                 self.showCallScreen(callStatus: "connecting")
             }
         }
@@ -432,6 +437,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         self.audioSession = nil
+        self.screenIsShown = false
         if (callStatus == .incoming) {
             SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
             NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
@@ -517,7 +523,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
 
     private func showCallScreen(callStatus: String) {
         DispatchQueue.main.async {
-           
+            
             guard let rootVC = self.topViewController() else {
                 print("⚠️ RootViewController not ready yet")
                 return
@@ -546,6 +552,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                     rootVC.present(vc, animated: true, completion: nil)
                 }
             }
+            self.screenIsShown = true
         }
     }
 

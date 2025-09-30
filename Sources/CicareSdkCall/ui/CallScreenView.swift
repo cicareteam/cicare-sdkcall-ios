@@ -121,17 +121,17 @@ public class CallScreenViewController: UIViewController {
                 self.statusLabel.text = self.metaData["call_incoming"]
                 //self.updateUIForIncomingCall()
             case .calling:
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_calling"]
+                self.statusLabel.text = self.metaData["call_calling"] ?? "Calling..."
                 //self.updateUIForOutgoingCall()
             case .ongoing:
                 self.isConnected = true
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? statusString
+                self.statusLabel.text = self.metaData["call_connected"] ?? "Connected"
             case .ended:
-                self.statusLabel.text = self.metaData["call_end"] ?? "call_end"
+                self.statusLabel.text = self.metaData["call_end"] ?? "Call End"
                 self.endedCall(delay: 0.5)
             case .connected:
                 self.isConnected = true
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? statusString
+                self.statusLabel.text = self.metaData["call_connected"] ?? "Connected"
                 //NotificationManager.shared.showOngoingCallNotification(callee: self.calleeName)
                 self.muteButton.isEnabled = true
                 self.startCallDurationTimer()
@@ -140,19 +140,19 @@ public class CallScreenViewController: UIViewController {
                     self.connectedButtonStack.isHidden = false
                 }
             case .connecting:
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_connecting"]
+                self.statusLabel.text = self.metaData["call_connecting"] ?? "Connecting"
             case .ringing:
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_ringing"]
+                self.statusLabel.text = self.metaData["call_ringing"] ?? "Ringing"
             case .answering:
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_connecting"]
+                self.statusLabel.text = self.metaData["call_answering"] ?? "Answering"
             case .busy:
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_busy"]
+                self.statusLabel.text = self.metaData["call_busy"] ?? "Busy"
                 //self.endedCall(delay: 1.5)
             case .refused:
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_refused"]
+                self.statusLabel.text = self.metaData["call_refused"] ?? "Declined"
                 //self.endedCall(delay: 1.5)
             case .cancel:
-                self.statusLabel.text = self.metaData["call_\(statusString)"] ?? self.metaData["call_end"]
+                self.statusLabel.text = self.metaData["call_cancel"] ?? "Canceled"
                 //self.endedCall()
             default:
                 break;

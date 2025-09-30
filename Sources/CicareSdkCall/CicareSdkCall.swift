@@ -124,7 +124,7 @@ public class CicareSdkCall {
     ) {
         let callerName = callerName == "" ? "Green SM Driver" : callerName
         let calleeName = calleeName == "" ? "Green SM Customer" : calleeName
-        var merged = metaData.merging(metaData) { _, new in new }
+        var merged = self.metaData.merging(metaData) { _, new in new }
         merged["call_name_title"] = calleeName
         DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
             CallService.sharedInstance.makeCall(handle: callerId, calleeName: calleeName, metaData: merged, callData: CallSessionRequest(
