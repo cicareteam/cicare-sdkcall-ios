@@ -10,6 +10,7 @@ public class CallScreenViewController: UIViewController {
     var avatarUrl: String? = ""
     var metaData: [String: String] = [:]
     var dismissed = true
+    var pendingDismissed = false
     
     let monitor = NWPathMonitor()
     let queue = DispatchQueue.global(qos: .background)
@@ -59,6 +60,12 @@ public class CallScreenViewController: UIViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(handleCallStatus(_:)), name: .callStatusChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(callProfileSet(_:)), name: .callProfileSet, object: "")
         NotificationCenter.default.addObserver(self, selector: #selector(handleNetworkSignal(_:)), name: .callNetworkChanged, object: nil)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(dismissScreen),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
     }
     
     @objc private func handleNetworkSignal(_ notification: Notification) {
@@ -89,8 +96,16 @@ public class CallScreenViewController: UIViewController {
         guard let nameString = notification.userInfo?["name"] as? String else { return }
         guard let avatarString = notification.userInfo?["avatar"] as? String else { return }
         DispatchQueue.main.async {
+            
             self.calleeName = nameString
-            self.nameLabel.text = self.metaData["call_name_title"] ?? self.calleeName
+            
+            if let callNameTitle = self.metaData["call_name_title"] {
+                if (!callNameTitle.isEmpty) {
+                    self.calleeName = callNameTitle
+                }
+            }
+            
+            self.nameLabel.text = self.calleeName
         }
         if let url = URL(string: avatarString) {
             URLSession.shared.dataTask(with: url) { data, _, _ in
@@ -176,19 +191,29 @@ public class CallScreenViewController: UIViewController {
     func endedCall(delay: Double = 1.5) {
         if (!dismissed) {
             self.isConnected = false
+            self.pendingDismissed = true
             self.callDurationTimer?.invalidate()
             self.muteButton.isEnabled = false
             self.speakerButton.isEnabled = false
             self.endButton.isEnabled = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [self] in
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                self.dismissScreen()
+            }
+        }
+        SocketManagerSignaling.shared.disconnect()
+    }
+    
+    @objc private func dismissScreen() {
+        if (self.pendingDismissed) {
+            DispatchQueue.main.asyncAfter(deadline: .now()) { [self] in
                 self.dismiss(animated: true) {
                     self.dismissed = true
+                    self.pendingDismissed = false
                     print("call screen dismissed")
                     CallService.sharedInstance.callVC = nil
                 }
             }
         }
-        SocketManagerSignaling.shared.disconnect()
     }
     
     deinit {
@@ -206,10 +231,13 @@ public class CallScreenViewController: UIViewController {
     
     private func setupUI() {
         self.dismissed = false
+        self.pendingDismissed = false
+        self.isConnected = false
         let titleLabel = UILabel()
         titleLabel.text = metaData["call_title"] ?? "Call Free"
         titleLabel.font = UIFont.boldSystemFont(ofSize: 22)
         titleLabel.textAlignment = .center
+        titleLabel.textColor = .black
         
         let titleStack = UIStackView(arrangedSubviews: [titleLabel])
         titleStack.axis = .vertical
@@ -238,9 +266,15 @@ public class CallScreenViewController: UIViewController {
         avatarImageView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(avatarImageView)
         
+        if let callNameTitle = metaData["call_name_title"] {
+            if (!callNameTitle.isEmpty) {
+                calleeName = callNameTitle
+            }
+        }
         
-        nameLabel.text = metaData["call_name_title"] ?? calleeName
+        nameLabel.text = calleeName
         nameLabel.font = UIFont.boldSystemFont(ofSize: 18)
+        nameLabel.textColor = .black
         nameLabel.textAlignment = .center
         
         connectionLabel.text = ""
