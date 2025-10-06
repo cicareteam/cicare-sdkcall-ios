@@ -447,25 +447,51 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         
         //todo: configure audio session
         //todo: answer network call
+        SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
         delegate?.callDidAnswer()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if (!self.screenIsShown) {
                 self.showCallScreen(callStatus: "connecting")
+                //
+            } else {
+                //SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
             }
         }
-        SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
-        if (isSignalingReady) {
+        
+        //let state = UIApplication.shared.applicationState
+        //if state == .inactive {
+            configureAudioSession()
+            //AVAudioSession.sharedInstance().setActive(true)
+        //}
+        
+        callStatus = .connecting
+        self.postCallStatus(.connecting)
+        if (self.isSignalingReady) {
             print("signaling ready")
             self.pendingAnswerAction = nil
-            SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
-            callStatus = .connected
+            //SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
+            self.callStatus = .connected
             self.postCallStatus(.connected)
             action.fulfill()
         } else {
             print("siganil not ready")
-            callStatus = .connecting
-            self.postCallStatus(.connecting)
             self.pendingAnswerAction = action
+        }
+        
+    }
+
+    func configureAudioSession() {
+        let audioSession = AVAudioSession.sharedInstance()
+        do {
+            if audioSession.category != .playAndRecord {
+                try audioSession.setCategory(AVAudioSession.Category.playAndRecord,
+                                             options: AVAudioSession.CategoryOptions.allowBluetooth)
+            }
+            if audioSession.mode != .voiceChat {
+                try audioSession.setMode(.voiceChat)
+            }
+        } catch {
+            //logger.error(msg: "Error configuring AVAudioSession: \(error.localizedDescription)")
         }
     }
     
