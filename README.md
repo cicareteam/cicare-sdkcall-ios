@@ -13,7 +13,7 @@ source 'https://github.com/CocoaPods/Specs.git'
 
 target 'YourAppTarget' do
   use_frameworks!
-  pod 'CiCareSDKCallIOS', '1.2.1-rc.5'
+  pod 'CiCareSDKCallIOS', '1.2.1-rc.6'
 end
 ````
 
@@ -155,12 +155,27 @@ CicareSdkCall.shared.outgoing(
 )
 ```
 
+## ⚙ Call State Listener
+You can get call state event by doing this
+```swift
+
+class CallEventDelegate: CallEventListener {
+    CicareSdkCall.shared.delegate = this
+    
+    public func onCallStateChanged(_ state: CallStatus) {
+        print(state)
+    }
+
+}
+
+```
+
 ---
 
 ## 🔗 References
 
 * CocoaPods: [https://cocoapods.org/pods/CiCareSDKCallIOS](https://cocoapods.org/pods/CiCareSDKCallIOS)
-* Latest version: **1.2.1-rc.5**
+* Latest version: **1.2.1-rc.6**
 * Apple Docs:
 
   * [Push Notifications](https://developer.apple.com/documentation/usernotifications)
