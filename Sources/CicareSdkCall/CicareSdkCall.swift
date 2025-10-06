@@ -186,7 +186,7 @@ public class CicareSdkCall: CallEventListener {
                 screen.callStatus = callStatus
                 screen.avatarUrl = avatarUrl
                 screen.metaData = metaData
-                screen.modalPresentationStyle = .fullScreen
+                screen.modalPresentationStyle = .overFullScreen
                 self.vc = screen
                 if let vc = self.vc {
                     topVC.present(vc, animated: true)
