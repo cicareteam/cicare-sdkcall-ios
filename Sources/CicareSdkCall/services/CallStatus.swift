@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum CallStatus: String {
+public enum CallStatus: String {
     case incoming
     case ringing_ok
     case missed
@@ -21,6 +21,7 @@ enum CallStatus: String {
     case refused
     case busy
     case cancel
+    case call_error
 }
 
 extension Notification.Name {

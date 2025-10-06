@@ -3,11 +3,13 @@
 import Foundation
 import SwiftUI
 
-public class CicareSdkCall {
+public class CicareSdkCall: CallEventListener {
     
     public static let shared: CicareSdkCall = CicareSdkCall()
     
     private var vc: UIViewController?
+    
+    weak public var delegate: CallEventListener?
     
     private var metaData: [String: String] = [
         "call_title": "Free Call",
@@ -80,6 +82,8 @@ public class CicareSdkCall {
             
     private init() {
         _ = NotificationManager.shared
+        SocketManagerSignaling.shared.delegate = self
+        CallService.sharedInstance.callEventDelegate = self
     }
     
     public func setAPI(baseUrl: String, token: String) {
@@ -189,6 +193,10 @@ public class CicareSdkCall {
                 }
             }
         }
+    }
+    
+    public func onCallStateChanged(_ state: CallStatus) {
+        delegate?.onCallStateChanged(state)
     }
 }
 

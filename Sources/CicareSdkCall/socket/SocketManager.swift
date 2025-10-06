@@ -2,7 +2,7 @@ import Foundation
 internal import SocketIO
 import WebRTC
 
-protocol CallEventListener: AnyObject {
+public protocol CallEventListener: AnyObject {
     func onCallStateChanged(_ state: CallStatus)
 }
 
@@ -14,6 +14,8 @@ enum SocketIOClientStatus: String {
 class SocketManagerSignaling: NSObject {
     
     public static let shared = SocketManagerSignaling()
+    
+    weak var delegate: CallEventListener?
     
     private var webrtcManager: WebRTCManager?
     private var manager: SocketManager?
@@ -118,7 +120,7 @@ class SocketManagerSignaling: NSObject {
             }*/
         }
         socket?.on("ANSWER_OK") { _, _ in
-            //print("answer_ok")
+            print("answer_ok")
             CallService.sharedInstance.connected()
         }
         socket?.on("MISSED_CALL") {_, _ in
@@ -231,23 +233,31 @@ class SocketManagerSignaling: NSObject {
             //CallService.sharedInstance.ringing()
         case .missed:
             CallService.sharedInstance.missed()
+            self.delegate?.onCallStateChanged(state)
+            break;
         case .connected:
+            self.delegate?.onCallStateChanged(state)
             break
         case .ringing:
+            self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.postCallStatus(state)
             break
         case .ended:
+            self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.endCall()
             break
         case .refused:
+            self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.postCallStatus(state)
             //CallService.sharedInstance.declineCall()
             break
         case .busy:
+            self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.postCallStatus(state)
             //CallService.sharedInstance.busyCall()
             break
         default:
+            self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.postCallStatus(state)
             break
         }

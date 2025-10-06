@@ -41,6 +41,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     private var isFromPhone: Bool = false
     private var screenIsShown: Bool = false
     public var isSignalingReady: Bool = false
+    weak var callEventDelegate: CallEventListener?
     private var pendingAnswerAction: CXAnswerCallAction?
     
     private var audioSession: AVAudioSession?
@@ -114,6 +115,8 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         self.callerAvatar = avatarUrl
         self.metaData = metaData
         
+        self.callEventDelegate?.onCallStateChanged(.incoming)
+        
         if var base64String = self.metaData?["alert_data"] as? String {
             if let range = base64String.range(of: "base64,") {
                 base64String = String(base64String[range.upperBound...])
@@ -141,9 +144,10 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         if let url = URL(string: self.server) {
             SocketManagerSignaling.shared.connect(wssUrl: url, token: self.token) { status in
                 if status == .connected {
-                    SocketManagerSignaling.shared.ringingCall()
+                        SocketManagerSignaling.shared.ringingCall()
                 } else {
                     self.endCall()
+                    self.callEventDelegate?.onCallStateChanged(.call_error)
                 }
             }
         } else {
@@ -206,6 +210,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             requestTransaction(transaction: transaction) { success in
                 if success {
                     self.postCallStatus(.connecting)
+                    self.callEventDelegate?.onCallStateChanged(.connecting)
                     self.postCallProfile(calleeName, calleeAvatar, metaData)
                     NotificationManager.shared.showOutgoingCallNotification(callee: handle)
                     
@@ -246,6 +251,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                             }
                             break
                         case .failure(let error):
+                            self.callEventDelegate?.onCallStateChanged(.call_error)
                             switch error {
                             case .badRequest(let data):
                                 self.postNetworkStatus(data.message)
@@ -298,7 +304,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     public func connected() {
         if let action = self.pendingAnswerAction {
-            SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
             //print("answered");
             self.callStatus = .connected
             self.postCallStatus(.connected)
@@ -448,15 +453,16 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                 self.showCallScreen(callStatus: "connecting")
             }
         }
+        SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
         if (isSignalingReady) {
-            //print("signaling ready")
+            print("signaling ready")
             self.pendingAnswerAction = nil
             SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
             callStatus = .connected
             self.postCallStatus(.connected)
             action.fulfill()
         } else {
-            //print("siganil not ready")
+            print("siganil not ready")
             callStatus = .connecting
             self.postCallStatus(.connecting)
             self.pendingAnswerAction = action
@@ -560,14 +566,14 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                     avatarUrl: self.callerAvatar,
                     metaData: self.metaData!
                 ))
-                hosting.modalPresentationStyle = .fullScreen
+                hosting.modalPresentationStyle = .overFullScreen
                 self.callVC = hosting
                 if let vc = self.callVC {
                     rootVC.present(vc, animated: true)
                 }
             } else {
                 let screen = CallScreenViewController(onMessageClicked: self.onMessageClicked)
-                screen.modalPresentationStyle = .fullScreen
+                screen.modalPresentationStyle = .overFullScreen
                 screen.callStatus = callStatus
                 screen.calleeName = self.callerName ?? ""
                 screen.avatarUrl = self.callerAvatar ?? ""
