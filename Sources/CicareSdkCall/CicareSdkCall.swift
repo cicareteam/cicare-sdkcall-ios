@@ -141,12 +141,12 @@ public class CicareSdkCall: CallEventListener {
                 checkSum: checkSum
             ))
         }
-        showCallScreen(
+        /*showCallScreen(
             calleeName: calleeName,
             callStatus: CallStatus.connecting.rawValue,
             avatarUrl: calleeAvatar,
             metaData: merged
-        )
+        )*/
     }
 
     private func getKeyWindowRootViewController() -> UIViewController? {

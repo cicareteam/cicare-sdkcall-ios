@@ -95,6 +95,7 @@ class SocketManagerSignaling: NSObject {
         socket?.on(clientEvent: .statusChange) { data, _ in
         }
         socket?.on("INIT_OK") { _, _ in
+            self.initOffer()
             /*if let webrtc = self.webrtcManager {
                 if (!webrtc.isPeerConnectionActive()) {
                     webrtc.reinit()
@@ -134,6 +135,8 @@ class SocketManagerSignaling: NSObject {
             self.onCallStateChanged(.ended)
         }
         socket?.on("ACCEPTED") { _, _ in
+            self.onCallStateChanged(.connected)
+            self.socket?.emit("CONNECTED")
         }
         socket?.on("CONNECTED") { _, _ in
             self.onCallStateChanged(.connected)
@@ -237,6 +240,7 @@ class SocketManagerSignaling: NSObject {
             break;
         case .connected:
             self.delegate?.onCallStateChanged(state)
+            CallService.sharedInstance.postCallStatus(state)
             break
         case .ringing:
             self.delegate?.onCallStateChanged(state)

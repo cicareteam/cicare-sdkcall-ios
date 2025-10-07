@@ -44,6 +44,8 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     weak var callEventDelegate: CallEventListener?
     private var pendingAnswerAction: CXAnswerCallAction?
     
+    private var callWindow: UIWindow?
+    
     private var audioSession: AVAudioSession?
     
     static let sharedInstance: CallService = CallService()
@@ -199,6 +201,10 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     // MARK: - Memulai Panggilan Keluar
     public func makeCall(handle: String, calleeName: String, calleeAvatar: String? = "", metaData: [String:String], callData: CallSessionRequest) {
+        self.callerName = calleeName
+        self.callerAvatar = calleeAvatar
+        self.metaData = metaData
+        self.showCallScreen(callStatus: "connecting")
         currentCall = UUID.init()
         if let unwrappedCurrentCall = currentCall {
             CallState.shared.currentCallUUID = currentCall
@@ -432,6 +438,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
         //todo: configure audio session
         //todo: start network call
+        configureAudioSession()
         callStatus = .connected
         provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: nil)
         provider.reportOutgoingCall(with: action.callUUID, connectedAt: nil)
@@ -481,6 +488,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
 
     func configureAudioSession() {
+        print("confugure audio session")
         let audioSession = AVAudioSession.sharedInstance()
         do {
             if audioSession.category != .playAndRecord {
@@ -513,6 +521,9 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         currentCall = nil
         SocketManagerSignaling.shared.disconnect()
         delegate?.callDidEnd()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.dismissCallScreen()
+        }
         action.fulfill()
     }
     
@@ -580,39 +591,62 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
 
     private func showCallScreen(callStatus: String) {
         DispatchQueue.main.async {
-            
-            guard let rootVC = self.topViewController() else {
-                print("⚠️ RootViewController not ready yet")
-                return
-            }
+            // Tutup window lama jika ada
+            self.callWindow?.isHidden = true
+            self.callWindow = nil
+
+            // Buat view controller call screen
+            let vc: UIViewController
             if #available(iOS 13.0, *) {
-                let hosting = UIHostingController(rootView: CallScreenWrapper(
+                vc = UIHostingController(rootView: CallScreenWrapper(
                     calleeName: self.callerName ?? "",
                     callStatus: callStatus,
                     avatarUrl: self.callerAvatar,
-                    metaData: self.metaData!
+                    metaData: self.metaData ?? [:]
                 ))
-                hosting.modalPresentationStyle = .overFullScreen
-                self.callVC = hosting
-                if let vc = self.callVC {
-                    rootVC.present(vc, animated: true)
-                }
             } else {
                 let screen = CallScreenViewController(onMessageClicked: self.onMessageClicked)
-                screen.modalPresentationStyle = .overFullScreen
                 screen.callStatus = callStatus
                 screen.calleeName = self.callerName ?? ""
                 screen.avatarUrl = self.callerAvatar ?? ""
-                screen.metaData = self.metaData!
-                self.callVC = screen
-                if let vc = self.callVC {
-                    rootVC.present(vc, animated: true, completion: nil)
-                }
+                screen.metaData = self.metaData ?? [:]
+                vc = screen
             }
+
+            // Buat UIWindow sesuai versi iOS
+            let newWindow: UIWindow
+            if #available(iOS 13.0, *) {
+                // Ambil scene yang aktif
+                guard let windowScene = UIApplication.shared.connectedScenes
+                    .compactMap({ $0 as? UIWindowScene })
+                    .first(where: { $0.activationState == .foregroundActive }) else {
+                    print("⚠️ Tidak ada active window scene")
+                    return
+                }
+                newWindow = UIWindow(windowScene: windowScene)
+            } else {
+                // iOS 12 ke bawah, pakai UIWindow biasa
+                newWindow = UIWindow(frame: UIScreen.main.bounds)
+            }
+
+            newWindow.frame = UIScreen.main.bounds
+            newWindow.rootViewController = vc
+            newWindow.windowLevel = .alert + 1 // tampil di atas semua UI
+            newWindow.makeKeyAndVisible()
+
+            self.callWindow = newWindow
+            self.callVC = vc
             self.screenIsShown = true
         }
     }
 
+    private func dismissCallScreen() {
+        DispatchQueue.main.async {
+            self.callWindow?.isHidden = true
+            self.callWindow = nil
+            self.screenIsShown = false
+        }
+    }
     
 }
 
