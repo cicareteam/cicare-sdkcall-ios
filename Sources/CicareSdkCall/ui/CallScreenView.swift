@@ -197,7 +197,7 @@ public class CallScreenViewController: UIViewController {
             self.speakerButton.isEnabled = false
             self.endButton.isEnabled = false
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                self.dismissScreen()
+                //self.dismissScreen()
             }
         }
         SocketManagerSignaling.shared.disconnect()
