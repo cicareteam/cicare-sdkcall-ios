@@ -591,11 +591,11 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
 
     private func showCallScreen(callStatus: String) {
         DispatchQueue.main.async {
+            self.screenIsShown = true
             // Tutup window lama jika ada
             self.callWindow?.isHidden = true
             self.callWindow = nil
 
-            // Buat view controller call screen
             let vc: UIViewController
             if #available(iOS 13.0, *) {
                 vc = UIHostingController(rootView: CallScreenWrapper(
@@ -613,30 +613,31 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                 vc = screen
             }
 
-            // Buat UIWindow sesuai versi iOS
             let newWindow: UIWindow
             if #available(iOS 13.0, *) {
-                // Ambil scene yang aktif
-                guard let windowScene = UIApplication.shared.connectedScenes
-                    .compactMap({ $0 as? UIWindowScene })
-                    .first(where: { $0.activationState == .foregroundActive }) else {
-                    print("⚠️ Tidak ada active window scene")
-                    return
+                let scene = UIApplication.shared.connectedScenes
+                    .compactMap { $0 as? UIWindowScene }
+                    .first { $0.activationState == .foregroundActive }
+                    ?? UIApplication.shared.connectedScenes
+                        .compactMap { $0 as? UIWindowScene }
+                        .first
+
+                if let windowScene = scene {
+                    newWindow = UIWindow(windowScene: windowScene)
+                } else {
+                    newWindow = UIWindow(frame: UIScreen.main.bounds)
                 }
-                newWindow = UIWindow(windowScene: windowScene)
             } else {
-                // iOS 12 ke bawah, pakai UIWindow biasa
                 newWindow = UIWindow(frame: UIScreen.main.bounds)
             }
 
             newWindow.frame = UIScreen.main.bounds
             newWindow.rootViewController = vc
-            newWindow.windowLevel = .alert + 1 // tampil di atas semua UI
+            newWindow.windowLevel = .alert + 1
             newWindow.makeKeyAndVisible()
 
             self.callWindow = newWindow
             self.callVC = vc
-            self.screenIsShown = true
         }
     }
 
