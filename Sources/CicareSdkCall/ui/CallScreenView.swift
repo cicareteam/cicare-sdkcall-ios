@@ -198,6 +198,7 @@ public class CallScreenViewController: UIViewController {
             self.endButton.isEnabled = false
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 //self.dismissScreen()
+                CallService.sharedInstance.dismissCallScreen()
             }
         }
         SocketManagerSignaling.shared.disconnect()

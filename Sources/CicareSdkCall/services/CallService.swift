@@ -336,6 +336,9 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                 }
             }
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.dismissCallScreen()
+        }
     }
     
     func cancelCall() {
@@ -353,6 +356,9 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                 }
             }
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.dismissCallScreen()
+        }
     }
     
     func declineCall() {
@@ -366,6 +372,9 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             requestTransaction(transaction: transaction){ succes in
                 //self.postCallStatus(.ended)
             }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.dismissCallScreen()
         }
     }
     func busyCall() {
@@ -383,6 +392,9 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                     CallState.shared.currentCallUUID = nil
                 }
             }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.dismissCallScreen()
         }
     }
     
@@ -641,7 +653,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         }
     }
 
-    private func dismissCallScreen() {
+    public func dismissCallScreen() {
         DispatchQueue.main.async {
             self.callWindow?.isHidden = true
             self.callWindow = nil
