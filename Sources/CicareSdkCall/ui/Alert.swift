@@ -34,6 +34,7 @@ class Alert: UIView {
         label.text = message
         label.textAlignment = .center
         label.numberOfLines = 0
+        label.textColor = .black
         label.translatesAutoresizingMaskIntoConstraints = false
         
         var stack = UIStackView(arrangedSubviews: [iconView, label])
