@@ -1,6 +1,7 @@
 // The Swift Programming Language
 // https://docs.swift.org/swift-book
 import Foundation
+import AVFoundation
 import SwiftUI
 
 public class CicareSdkCall: CallEventListener {
@@ -91,6 +92,29 @@ public class CicareSdkCall: CallEventListener {
         APIService.shared.apiKey = token
     }
     
+    func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
+        switch AVAudioSession.sharedInstance().recordPermission {
+        case .granted:
+            // Sudah diizinkan
+            completion(true)
+            
+        case .denied:
+            // User menolak sebelumnya, arahkan ke Settings
+            completion(false)
+            
+        case .undetermined:
+            // Belum pernah diminta, tampilkan prompt
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                DispatchQueue.main.async {
+                    completion(granted)
+                }
+            }
+            
+        @unknown default:
+            completion(false)
+        }
+    }
+    
     public func incoming(
         callerId: String,
         callerName: String = "Green SM Driver",
@@ -102,6 +126,7 @@ public class CicareSdkCall: CallEventListener {
         metaData: [String: String],
         onMessageClicked: (() -> Void)? = nil
     ) {
+        _ = NotificationManager.shared
         self.metaData["call_name_title"] = callerName
         
         let callerName = callerName == "" ? "Green SM Driver" : callerName
@@ -126,20 +151,25 @@ public class CicareSdkCall: CallEventListener {
         checkSum: String,
         metaData: [String: String]
     ) {
-        let callerName = callerName == "" ? "Green SM Driver" : callerName
-        let calleeName = calleeName == "" ? "Green SM Customer" : calleeName
-        var merged = self.metaData.merging(metaData) { _, new in new }
-        merged["call_name_title"] = calleeName
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-            CallService.sharedInstance.makeCall(handle: callerId, calleeName: calleeName, metaData: merged, callData: CallSessionRequest(
-                callerId: callerId,
-                callerName: callerName,
-                callerAvatar: callerAvatar,
-                calleeId: calleeId,
-                calleeName: calleeName,
-                calleeAvatar: calleeAvatar,
-                checkSum: checkSum
-            ))
+        requestMicrophonePermission { granted in
+            
+            //if (granted) {
+                let callerName = callerName == "" ? "Green SM Driver" : callerName
+                let calleeName = calleeName == "" ? "Green SM Customer" : calleeName
+                var merged = self.metaData.merging(metaData) { _, new in new }
+                merged["call_name_title"] = calleeName
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    CallService.sharedInstance.makeCall(handle: callerId, calleeName: calleeName, metaData: merged, callData: CallSessionRequest(
+                        callerId: callerId,
+                        callerName: callerName,
+                        callerAvatar: callerAvatar,
+                        calleeId: calleeId,
+                        calleeName: calleeName,
+                        calleeAvatar: calleeAvatar,
+                        checkSum: checkSum
+                    ))
+                }
+            //}
         }
         /*showCallScreen(
             calleeName: calleeName,

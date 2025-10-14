@@ -225,6 +225,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         self.callerAvatar = calleeAvatar
         self.metaData = metaData
         self.showCallScreen(callStatus: "connecting")
+        self.checkMicrophonePermission()
         if (!self.checkMicrophonePermission()) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.callEventDelegate?.onCallStateChanged(.call_error)
