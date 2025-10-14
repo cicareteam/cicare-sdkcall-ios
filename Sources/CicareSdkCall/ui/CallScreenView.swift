@@ -74,6 +74,7 @@ public class CallScreenViewController: UIViewController {
         else {
             return
         }
+        print("error \(value)")
         DispatchQueue.main.async {
             if (self.isConnected) {
                 switch value {
@@ -162,13 +163,13 @@ public class CallScreenViewController: UIViewController {
                 self.statusLabel.text = self.metaData["call_answering"] ?? "Answering"
             case .busy:
                 self.statusLabel.text = self.metaData["call_busy"] ?? "Busy"
-                //self.endedCall(delay: 1.5)
+                self.endedCall(delay: 1.5)
             case .refused:
                 self.statusLabel.text = self.metaData["call_refused"] ?? "Declined"
-                //self.endedCall(delay: 1.5)
+                self.endedCall(delay: 1.5)
             case .cancel:
                 self.statusLabel.text = self.metaData["call_cancel"] ?? "Canceled"
-                //self.endedCall()
+                self.endedCall()
             default:
                 break;
             }
@@ -198,6 +199,7 @@ public class CallScreenViewController: UIViewController {
             self.endButton.isEnabled = false
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                 //self.dismissScreen()
+                CallService.sharedInstance.dismissCallScreen()
             }
         }
         SocketManagerSignaling.shared.disconnect()
