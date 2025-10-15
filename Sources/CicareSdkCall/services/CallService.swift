@@ -369,6 +369,24 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         }
     }
     
+    func closedCall() {
+        self.screenIsShown = false
+        self.isSignalingReady = false
+        if let uuid = currentCall {
+            let endCallAction = CXEndCallAction.init(call:uuid)
+            let transaction = CXTransaction.init()
+            transaction.addAction(endCallAction)
+            requestTransaction(transaction: transaction) { success in
+                if success {
+                    CallState.shared.currentCallUUID = nil
+                }
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            self.dismissCallScreen()
+        }
+    }
+    
     func cancelCall() {
         self.screenIsShown = false
         self.isSignalingReady = false
