@@ -253,12 +253,12 @@ class SocketManagerSignaling: NSObject {
         case .refused:
             self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.postCallStatus(state)
-            //CallService.sharedInstance.declineCall()
+            CallService.sharedInstance.closedCall()
             break
         case .busy:
             self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.postCallStatus(state)
-            //CallService.sharedInstance.busyCall()
+            CallService.sharedInstance.closedCall()
             break
         default:
             self.delegate?.onCallStateChanged(state)
