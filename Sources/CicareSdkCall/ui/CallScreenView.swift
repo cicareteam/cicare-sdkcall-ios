@@ -440,7 +440,7 @@ public class CallScreenViewController: UIViewController {
         }
         speakerButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
         
-        let messageButton = CircleIconButton(
+        /*let messageButton = CircleIconButton(
             icon: compatibleImage(named: "message", systemName: "message"),
             labelText: self.metaData["call_btn_message"] ?? "Message",
             iconColor: UIColor(hex: "17666A")!,
@@ -451,9 +451,9 @@ public class CallScreenViewController: UIViewController {
                 CallService.sharedInstance.declineCall()
             }
         }
-        messageButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
+        messageButton.widthAnchor.constraint(equalToConstant: 64).isActive = true*/
         
-        let audioButtonStack = UIStackView(arrangedSubviews: [speakerButton, muteButton, messageButton])
+        let audioButtonStack = UIStackView(arrangedSubviews: [speakerButton, muteButton/*, messageButton*/])
         audioButtonStack.axis = .horizontal
         audioButtonStack.spacing = 50
         audioButtonStack.distribution = .fillEqually
@@ -467,11 +467,11 @@ public class CallScreenViewController: UIViewController {
             iconColor: .white,
             backgroundColor: .red
         ) {
-            if CallState.shared.currentCallUUID != nil {
-                CallService.sharedInstance.declineCall()
-            } else {
-                self.endedCall()
-            }
+            //if CallState.shared.currentCallUUID != nil {
+            CallService.sharedInstance.declineCall()
+            //} else {
+            //    self.endedCall()
+            //}
         }
         endCallButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
         let answerCallButton = CircleIconButton(
@@ -480,9 +480,9 @@ public class CallScreenViewController: UIViewController {
             iconColor: .white,
             backgroundColor: .green
         ) {
-            if let uuid = CallState.shared.currentCallUUID {
-                CallService.sharedInstance.answerCall(id: uuid)
-            }
+            //if let uuid = CallState.shared.currentCallUUID {
+            CallService.sharedInstance.answerCall()
+            //}
         }
         answerCallButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
         let actionButtonStack = UIStackView(arrangedSubviews: [endCallButton, answerCallButton])
