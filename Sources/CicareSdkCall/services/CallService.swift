@@ -416,7 +416,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             let transaction = CXTransaction()
             transaction.addAction(endCallAction)
             requestTransaction(transaction: transaction){ succes in
-                //self.postCallStatus(.ended)
+                self.postCallStatus(.ended)
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -474,12 +474,14 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     // MARK: - Menjawab Panggilan
-    public func answerCall(id: UUID) {
-        let action = CXAnswerCallAction(call: id)
-        let transaction = CXTransaction(action: action)
-        requestTransaction(transaction: transaction) { success in
-            if success {
-                self.delegate?.callDidConnected()
+    public func answerCall() {
+        if let uuid = currentCall {
+            let action = CXAnswerCallAction(call: uuid)
+            let transaction = CXTransaction(action: action)
+            requestTransaction(transaction: transaction) { success in
+                if success {
+                    self.delegate?.callDidConnected()
+                }
             }
         }
     }
