@@ -455,7 +455,7 @@ public class CallScreenViewController: UIViewController {
         
         let audioButtonStack = UIStackView(arrangedSubviews: [speakerButton, muteButton/*, messageButton*/])
         audioButtonStack.axis = .horizontal
-        audioButtonStack.spacing = 50
+        audioButtonStack.spacing = 100
         audioButtonStack.distribution = .fillEqually
         audioButtonStack.alignment = .center
         audioButtonStack.translatesAutoresizingMaskIntoConstraints = false
