@@ -10,6 +10,6 @@ import CallKit
 
 final class CallState {
     static let shared = CallState()
-    var currentCallUUID: UUID?
+    //var currentCallUUID: UUID?
     var callProvider: CXProvider?
 }

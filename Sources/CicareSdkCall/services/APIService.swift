@@ -31,6 +31,7 @@ enum APIError: Error {
     case requestFailed(Error)
     case invalidResponse(Error?)
     case decodingFailed(Error)
+    case unauthorized(String)
     case badRequest(ErrorResponse)
 }
 
@@ -97,7 +98,8 @@ final class APIService: NSObject {
                 } catch {
                     completion(.failure(.decodingFailed(error)))
                 }
-
+            case 401:
+                completion(.failure(.unauthorized("")))
             case 400:
                 do {
                     print("Raw JSON:\n", error ?? "nil")

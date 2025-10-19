@@ -122,7 +122,6 @@ class SocketManagerSignaling: NSObject {
         }
         socket?.on("ANSWER_OK") { _, _ in
             print("answer_ok")
-            CallService.sharedInstance.connected()
         }
         socket?.on("MISSED_CALL") {_, _ in
             self.onCallStateChanged(.missed)
@@ -130,6 +129,7 @@ class SocketManagerSignaling: NSObject {
         socket?.on("RINGING_OK") {_, _ in
             self.onCallStateChanged(.ringing_ok)
             CallService.sharedInstance.isSignalingReady = true
+            CallService.sharedInstance.connected()
         }
         socket?.on("MISSED_CALL") {_, _ in
             self.onCallStateChanged(.ended)
@@ -210,7 +210,6 @@ class SocketManagerSignaling: NSObject {
 
     func send(event: String, data: [String: Any]) {
         if (self.isConnected) {
-            print("send \(event)")
             socket?.emit(event, data)
         }
     }
@@ -248,6 +247,8 @@ class SocketManagerSignaling: NSObject {
             break
         case .ended:
             self.delegate?.onCallStateChanged(state)
+            print("socket ended")
+            CallService.sharedInstance.callStatus = .ended
             CallService.sharedInstance.endCall()
             break
         case .refused:

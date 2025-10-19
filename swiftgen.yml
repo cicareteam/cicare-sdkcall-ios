@@ -7,5 +7,5 @@ xcassets:
          publicAccess: true
          forceProvidesNamespaces: true
          enumName: AsssetKitImageProvider
-       output: Sources/CicareSdkCall/ui/XCAssets.swift
+       output: Sources/CicareSdkCall/ui/MediaXCAssets.swift
 

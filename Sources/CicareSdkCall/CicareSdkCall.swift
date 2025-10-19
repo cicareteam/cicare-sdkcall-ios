@@ -149,7 +149,8 @@ public class CicareSdkCall: CallEventListener {
         calleeName: String = "Green SM Customer",
         calleeAvatar: String,
         checkSum: String,
-        metaData: [String: String]
+        metaData: [String: String],
+        completion: @escaping (Result<Void, any Error>) -> Void
     ) {
         requestMicrophonePermission { granted in
             
@@ -167,7 +168,9 @@ public class CicareSdkCall: CallEventListener {
                         calleeName: calleeName,
                         calleeAvatar: calleeAvatar,
                         checkSum: checkSum
-                    ))
+                    )) { error in
+                        completion(error)
+                    }
                 }
             //}
         }
