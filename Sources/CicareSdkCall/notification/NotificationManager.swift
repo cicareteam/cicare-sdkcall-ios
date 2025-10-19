@@ -39,7 +39,6 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         
         // Critical alert requires special entitlement, fallback to normal alert
         if id == "incoming" {
-            print(CallState.shared.currentCallUUID!)
             content.sound = UNNotificationSound.defaultCritical
         } else {
             content.sound = UNNotificationSound.default
@@ -87,9 +86,9 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             // Trigger your accept call logic here
         case "REJECT_CALL":
             print("User rejected call")
-            if CallState.shared.currentCallUUID != nil {
-                CallService.sharedInstance.endCall()
-            }
+            //if CallState.shared.currentCallUUID != nil {
+            CallService.sharedInstance.endCall()
+            //}
             // Trigger your reject call logic here
         default:
             break

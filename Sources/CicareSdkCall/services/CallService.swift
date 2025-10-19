@@ -14,6 +14,23 @@ protocol CallManagerDelegate : AnyObject {
     func callDidFail()
 }
 
+enum CallError: LocalizedError {
+    case microphonePermissionDenied
+    case apiUnauthorized
+    case internalServerError(String)
+    
+    var errorDescription: String? {
+        switch self {
+        case .microphonePermissionDenied:
+            return "Microphone permission denied."
+        case .apiUnauthorized:
+            return "Api Unauthorized."
+        case .internalServerError(let message):
+            return message
+        }
+    }
+}
+
 struct CallSession: Decodable {
     let server: String
     let token: String
@@ -49,6 +66,8 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     private var audioSession: AVAudioSession?
     
     static let sharedInstance: CallService = CallService()
+    
+    var answeredButNotReady: Bool = false
     
     private var onMessageClicked : (() -> Void)?
     
@@ -114,7 +133,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     public func postNetworkStatus(_ status: String) {
-        print("status \(status)")
         NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["error" : status])
     }
     
@@ -136,6 +154,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         self.metaData = metaData
         
         self.callEventDelegate?.onCallStateChanged(.incoming)
+        self.answeredButNotReady = false
         
         if var base64String = self.metaData?["alert_data"] as? String {
             if let range = base64String.range(of: "base64,") {
@@ -161,6 +180,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         
         self.ringing()
         self.isSignalingReady = false
+        //DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
         if let url = URL(string: self.server) {
             SocketManagerSignaling.shared.connect(wssUrl: url, token: self.token) { status in
                 if status == .connected {
@@ -173,11 +193,12 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         } else {
             self.endCall()
         }
+        //}
     }
     
     public func ringing() {
         let incomingUUID = UUID()
-        CallState.shared.currentCallUUID = incomingUUID
+        //CallState.shared.currentCallUUID = incomingUUID
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(type: .generic, value: self.callerName ?? "")
         update.localizedCallerName = callerName
@@ -218,149 +239,117 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     // MARK: - Memulai Panggilan Keluar
-    public func makeCall(handle: String, calleeName: String, calleeAvatar: String? = "", metaData: [String:String], callData: CallSessionRequest) {
+    public func makeCall(handle: String, calleeName: String, calleeAvatar: String? = "", metaData: [String:String], callData: CallSessionRequest, completion: @escaping (Result<Void, any Error>) -> Void) {
         
-        
+        self.answeredButNotReady = false
         self.callerName = calleeName
         self.callerAvatar = calleeAvatar
         self.metaData = metaData
-        self.showCallScreen(callStatus: "connecting")
-        self.checkMicrophonePermission()
+        showCallScreen(callStatus: "connecting")
         if (!self.checkMicrophonePermission()) {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                 self.callEventDelegate?.onCallStateChanged(.call_error)
                 self.postNetworkStatus("microphone_permission_denied")
+                completion(.failure(CallError.microphonePermissionDenied))
             }
         } else {
-        currentCall = UUID.init()
-            if let unwrappedCurrentCall = currentCall {
-                CallState.shared.currentCallUUID = currentCall
-                let cxHandle = CXHandle(type: CXHandle.HandleType.generic, value: handle)
-                let action = CXStartCallAction.init(call: unwrappedCurrentCall, handle: cxHandle)
-                action.isVideo = false
-                let transaction = CXTransaction.init()
-                transaction.addAction(action)
-                requestTransaction(transaction: transaction) { success in
-                    if success {
-                        self.postCallStatus(.connecting)
-                        self.callEventDelegate?.onCallStateChanged(.connecting)
-                        self.postCallProfile(calleeName, calleeAvatar, metaData)
-                        NotificationManager.shared.showOutgoingCallNotification(callee: handle)
-                        
-                        guard let bodyData = try? JSONEncoder().encode(callData) else {
-                            return
-                        }
-                        
-                        APIService.shared.request(
-                            path: "api/sdk-call/one2one",
-                            method: "POST",
-                            body: bodyData,
-                            headers: ["Content-Type": "application/json"],
-                            completion: { (result: Result<CallSession, APIError>) in
-                                switch result {
-                                case .success(let callSession):
-                                    if let wssUrl = URL(string: callSession.server) {
+            currentCall = UUID.init()
+            
+            self.postCallProfile(calleeName, calleeAvatar, metaData)
+            NotificationManager.shared.showOutgoingCallNotification(callee: handle)
+            
+            guard let bodyData = try? JSONEncoder().encode(callData) else {
+                return
+            }
+            
+            self.postCallStatus(.connecting)
+            self.callEventDelegate?.onCallStateChanged(.connecting)
+            APIService.shared.request(
+                path: "api/sdk-call/one2one",
+                method: "POST",
+                body: bodyData,
+                headers: ["Content-Type": "application/json"],
+                completion: { (result: Result<CallSession, APIError>) in
+                    switch result {
+                    case .success(let callSession):
+                        if let wssUrl = URL(string: callSession.server) {
+                            
+                            if let unwrappedCurrentCall = self.currentCall {
+                                //CallState.shared.currentCallUUID = currentCall
+                                let cxHandle = CXHandle(type: CXHandle.HandleType.generic, value: handle)
+                                let action = CXStartCallAction.init(call: unwrappedCurrentCall, handle: cxHandle)
+                                action.isVideo = false
+                                let transaction = CXTransaction.init()
+                                transaction.addAction(action)
+                                self.requestTransaction(transaction: transaction) { success in
+                                    if success {
                                         self.postCallStatus(.calling)
+                                        self.callEventDelegate?.onCallStateChanged(.calling)
                                         SocketManagerSignaling.shared.connect(wssUrl: wssUrl, token: callSession.token) { status in
                                             if status == .connected {
                                                 SocketManagerSignaling.shared.initCall()
                                             }
                                         }
-                                        /*self.signaling.connect(wssUrl: wssUrl, token: callSession.token) { status in
-                                         if status == .connected {
-                                         self.webRTCManager.createOffer() { sdp in
-                                         print("init call")
-                                         self.signaling.send(event: "INIT_CALL", data: [
-                                         "is_caller": true,
-                                         "sdp": sdp
-                                         ])
-                                         }
-                                         } else {
-                                         print(status)
-                                         }
-                                         }*/
-                                        //SocketConnection.default.connect(url: callSession.server, token: callSession.token)
-                                        
                                     }
-                                    break
-                                case .failure(let error):
-                                    self.callEventDelegate?.onCallStateChanged(.call_error)
-                                    switch error {
-                                    case .badRequest(let data):
-                                        self.postNetworkStatus(data.message)
-                                    default:
-                                        print(error)
-                                        self.postNetworkStatus("call_failed_api")
-                                    }
-                                    /*switch error {
-                                     case .badURL:
-                                     self.postNetworkStatus("Failed make a call due to bad URL")
-                                     case .invalidResponse:
-                                     self.postNetworkStatus("Failed make a call due to invalid response")
-                                     case .decodingFailed(let decodeError):
-                                     print("⚠️ JSON decoding failed: \(decodeError)")
-                                     case .requestFailed(let underlyingError):
-                                     if let urlError = underlyingError as? URLError {
-                                     switch urlError.code {
-                                     case .timedOut:
-                                     self.postNetworkStatus("Failed make a call due to timeout")
-                                     case .notConnectedToInternet:
-                                     self.postNetworkStatus("Failed make a call due to no internet connection")
-                                     case .cannotConnectToHost:
-                                     self.postNetworkStatus("Failed make a call due to server is down or blocked")
-                                     case .cannotFindHost:
-                                     print("❓ Host not found (DNS issue)")
-                                     default:
-                                     print("🌐 Network error: \(urlError.code)")
-                                     }
-                                     } else {
-                                     print("❌ Other request error: \(underlyingError)")
-                                     }
-                                     }*/
-                                    //self.endCall()
                                 }
-                            })
+                            }
+                        } else {
+                            self.callEventDelegate?.onCallStateChanged(.call_error)
+                            completion(.failure(CallError.internalServerError("server_null")))
+                            self.postNetworkStatus("server_not_found")
+                        }
+                        break
+                    case .failure(let error):
+                        self.currentCall = nil
+                        self.callEventDelegate?.onCallStateChanged(.call_error)
+                        switch error {
+                        case .unauthorized:
+                            completion(.failure(CallError.apiUnauthorized))
+                            self.postNetworkStatus("call_failed_api")
+                        case .badRequest(let data):
+                            completion(.failure(CallError.internalServerError(data.message)))
+                            self.postNetworkStatus(data.message)
+                        default:
+                            completion(.failure(CallError.internalServerError("call_failed_api")))
+                            self.postNetworkStatus("call_failed_api")
+                        }
                     }
-                }
+                })
             }
         }
-        
-        /*callController?.request(transaction) { error in
-            if let error = error {
-                print("❌ Outgoing call error: \(error)")
-            } else {
-                self.postCallStatus(.outgoing)
-                self.postCallProfile(calleeName, calleeAvatar)
-                NotificationManager.shared.showOutgoingCallNotification(callee: handle)
-            }
-        }*/
-    }
     
     public func connected() {
-        if let action = self.pendingAnswerAction {
+        if self.answeredButNotReady {
             //print("answered");
             self.callStatus = .connected
             self.postCallStatus(.connected)
-            action.fulfill()
+            SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
+            self.answeredButNotReady = false
             self.pendingAnswerAction = nil
+            configureAudioSession()
+            SocketManagerSignaling.shared.initOffer()
         }
     }
     
     func endCall() {
+        print("req ended")
         self.screenIsShown = false
         self.isSignalingReady = false
         SocketManagerSignaling.shared.send(event: "REQUEST_HANGUP", data: [:])
         if (callStatus != .ended) {
             callStatus = .ended
-            self.postCallStatus(.ended)
+            CallService.sharedInstance.postCallStatus(.ended)
+            callEventDelegate?.onCallStateChanged(.ended)
         }
         if let uuid = currentCall {
+            print("uuid ended: \(uuid)")
             let endCallAction = CXEndCallAction.init(call:uuid)
             let transaction = CXTransaction.init()
             transaction.addAction(endCallAction)
             requestTransaction(transaction: transaction) { success in
                 if success {
-                    CallState.shared.currentCallUUID = nil
+                    self.currentCall = nil
+                    //CallState.shared.currentCallUUID = nil
                 }
             }
         }
@@ -378,7 +367,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             transaction.addAction(endCallAction)
             requestTransaction(transaction: transaction) { success in
                 if success {
-                    CallState.shared.currentCallUUID = nil
+                    //CallState.shared.currentCallUUID = nil
                 }
             }
         }
@@ -398,7 +387,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             transaction.addAction(endCallAction)
             requestTransaction(transaction: transaction) { success in
                 if success {
-                    CallState.shared.currentCallUUID = nil
+                    //CallState.shared.currentCallUUID = nil
                 }
             }
         }
@@ -435,7 +424,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             transaction.addAction(endCallAction)
             requestTransaction(transaction: transaction) { success in
                 if success {
-                    CallState.shared.currentCallUUID = nil
+                    //CallState.shared.currentCallUUID = nil
                 }
             }
         }
@@ -491,7 +480,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     func providerDidReset(_ provider: CXProvider) {
         print("🔄 Provider reset")
         self.postCallStatus(.ended)
-        CallState.shared.currentCallUUID = nil
+        //CallState.shared.currentCallUUID = nil
     }
     
     // If provider:executeTransaction:error: returned NO, each perform*CallAction method is called sequentially for each action in the transaction
@@ -514,7 +503,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         
         //todo: configure audio session
         //todo: answer network call
-        SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
         delegate?.callDidAnswer()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if (!self.screenIsShown) {
@@ -533,15 +521,18 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         
         callStatus = .connecting
         self.postCallStatus(.connecting)
+        self.callEventDelegate?.onCallStateChanged(.connecting)
         if (self.isSignalingReady) {
-            print("signaling ready")
+            SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
+            self.answeredButNotReady = false
             self.pendingAnswerAction = nil
             //SocketManagerSignaling.shared.send(event: "ANSWER_CALL", data: [:])
-            self.callStatus = .connected
-            self.postCallStatus(.connected)
+            //self.callStatus = .connected
+            //self.postCallStatus(.connected)
             action.fulfill()
         } else {
-            print("siganil not ready")
+            self.answeredButNotReady = true
+            self.postCallStatus(.connecting)
             //self.pendingAnswerAction = action
             action.fulfill()
         }
@@ -549,7 +540,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
 
     func configureAudioSession() {
-        print("confugure audio session")
         let audioSession = AVAudioSession.sharedInstance()
         do {
             if audioSession.category != .playAndRecord {
@@ -578,6 +568,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         if (callStatus != .ended) {
             callStatus = .ended
             self.postCallStatus(.ended)
+            self.callEventDelegate?.onCallStateChanged(.ended)
         }
         currentCall = nil
         SocketManagerSignaling.shared.disconnect()
@@ -707,6 +698,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             self.callWindow?.isHidden = true
             self.callWindow = nil
             self.screenIsShown = false
+            self.currentCall = nil
         }
     }
     

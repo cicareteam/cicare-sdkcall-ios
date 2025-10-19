@@ -74,7 +74,6 @@ public class CallScreenViewController: UIViewController {
         else {
             return
         }
-        print("error \(value)")
         DispatchQueue.main.async {
             if (self.isConnected) {
                 switch value {
@@ -157,6 +156,12 @@ public class CallScreenViewController: UIViewController {
                 }
             case .connecting:
                 self.statusLabel.text = self.metaData["call_connecting"] ?? "Connecting"
+                if CallService.sharedInstance.answeredButNotReady {
+                    DispatchQueue.main.async {
+                        self.incomingButtonStack.isHidden = true
+                        self.connectedButtonStack.isHidden = false
+                    }
+                }
             case .ringing:
                 self.statusLabel.text = self.metaData["call_ringing"] ?? "Ringing"
             case .answering:
@@ -182,7 +187,8 @@ public class CallScreenViewController: UIViewController {
             message: text,
             icon: icon
         ) {
-            self.endedCall(delay: 0.0)
+            CallService.sharedInstance.endCall()
+            //self.endedCall(delay: 0.0)
         }
         DispatchQueue.main.async {
             toast.show(in: self.view)
@@ -198,8 +204,7 @@ public class CallScreenViewController: UIViewController {
             self.speakerButton.isEnabled = false
             self.endButton.isEnabled = false
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                //self.dismissScreen()
-                CallService.sharedInstance.dismissCallScreen()
+                self.dismissScreen()
             }
         }
         SocketManagerSignaling.shared.disconnect()
@@ -207,12 +212,13 @@ public class CallScreenViewController: UIViewController {
     
     @objc private func dismissScreen() {
         if (self.pendingDismissed) {
-            DispatchQueue.main.asyncAfter(deadline: .now()) { [self] in
+            print("dismissed")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [self] in
                 self.dismiss(animated: true) {
                     self.dismissed = true
                     self.pendingDismissed = false
-                    print("call screen dismissed")
-                    CallService.sharedInstance.callVC = nil
+                    //CallService.sharedInstance.callVC = nil
+                    CallService.sharedInstance.dismissCallScreen()
                 }
             }
         }
@@ -398,7 +404,7 @@ public class CallScreenViewController: UIViewController {
             self.muteButton.icon = self.isMuted ? self.compatibleImage(named: "mic.slash", systemName: "mic.slash.fill") : self.compatibleImage(named: "mic.slash", systemName: "mic.slash")
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
-            if let uuid = CallState.shared.currentCallUUID {
+            if let uuid = CallService.sharedInstance.currentCall {
                 print("muted 2 \(self.isMuted)")
                 let muteAction = CXSetMutedCallAction(call: uuid, muted: self.isMuted)
                 let transaction = CXTransaction(action: muteAction)
@@ -507,7 +513,7 @@ public class CallScreenViewController: UIViewController {
             self.muteButton.icon = self.isMuted ? self.compatibleImage(named: "mic.slash", systemName: "mic.slash.fill") : self.compatibleImage(named: "mic.slash", systemName: "mic.slash")
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
-            if let uuid = CallState.shared.currentCallUUID {
+            if let uuid = CallService.sharedInstance.currentCall {
                 print("muted \(self.isMuted)")
                 let muteAction = CXSetMutedCallAction(call: uuid, muted: self.isMuted)
                 let transaction = CXTransaction(action: muteAction)
@@ -566,12 +572,8 @@ public class CallScreenViewController: UIViewController {
                 self.statusLabel.text = self.metaData["call_end"]
                 CallService.sharedInstance.cancelCall()
             } else {
-                if CallService.sharedInstance.currentCall != nil {
-                    self.isConnected = false
-                    CallService.sharedInstance.endCall()
-                } else {
-                    self.endedCall()
-                }
+                self.isConnected = false
+                CallService.sharedInstance.endCall()
             }
             // Handle end call action here
         }
