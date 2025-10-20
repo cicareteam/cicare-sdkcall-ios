@@ -245,14 +245,10 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         self.callerName = calleeName
         self.callerAvatar = calleeAvatar
         self.metaData = metaData
-        showCallScreen(callStatus: "connecting")
         if (!self.checkMicrophonePermission()) {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.callEventDelegate?.onCallStateChanged(.call_error)
-                self.postNetworkStatus("microphone_permission_denied")
-                completion(.failure(CallError.microphonePermissionDenied))
-            }
+            completion(.failure(CallError.microphonePermissionDenied))
         } else {
+            showCallScreen(callStatus: "connecting")
             currentCall = UUID.init()
             
             self.postCallProfile(calleeName, calleeAvatar, metaData)
