@@ -88,7 +88,7 @@ final class APIService: NSObject {
                 completion(.failure(.invalidResponse(error ?? nil)))
                 return
             }
-            print("status code: \(http.statusCode)")
+            //print("status code: \(http.statusCode)")
             // Cek status code
             switch http.statusCode {
             case 200...299:
@@ -102,7 +102,7 @@ final class APIService: NSObject {
                 completion(.failure(.unauthorized("")))
             case 400:
                 do {
-                    print("Raw JSON:\n", error ?? "nil")
+                    //print("Raw JSON:\n", error ?? "nil")
                     let errorDecoded = try JSONDecoder().decode(ErrorResponse.self, from: data)
                     completion(.failure(.badRequest(errorDecoded)))
                 } catch {

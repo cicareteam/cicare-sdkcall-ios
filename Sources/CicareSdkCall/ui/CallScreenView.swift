@@ -212,7 +212,6 @@ public class CallScreenViewController: UIViewController {
     
     @objc private func dismissScreen() {
         if (self.pendingDismissed) {
-            print("dismissed")
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [self] in
                 self.dismiss(animated: true) {
                     self.dismissed = true
@@ -405,7 +404,6 @@ public class CallScreenViewController: UIViewController {
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             if let uuid = CallService.sharedInstance.currentCall {
-                print("muted 2 \(self.isMuted)")
                 let muteAction = CXSetMutedCallAction(call: uuid, muted: self.isMuted)
                 let transaction = CXTransaction(action: muteAction)
                 CallService.sharedInstance.requestTransaction(transaction: transaction) { success in
@@ -514,7 +512,6 @@ public class CallScreenViewController: UIViewController {
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             if let uuid = CallService.sharedInstance.currentCall {
-                print("muted \(self.isMuted)")
                 let muteAction = CXSetMutedCallAction(call: uuid, muted: self.isMuted)
                 let transaction = CXTransaction(action: muteAction)
                 CallService.sharedInstance.requestTransaction(transaction: transaction) { success in

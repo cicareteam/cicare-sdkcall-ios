@@ -85,7 +85,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             //}
             // Trigger your accept call logic here
         case "REJECT_CALL":
-            print("User rejected call")
+            //print("User rejected call")
             //if CallState.shared.currentCallUUID != nil {
             CallService.sharedInstance.endCall()
             //}

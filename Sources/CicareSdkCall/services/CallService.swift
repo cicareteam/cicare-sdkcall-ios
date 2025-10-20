@@ -332,7 +332,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     func endCall() {
-        print("req ended")
         self.screenIsShown = false
         self.isSignalingReady = false
         SocketManagerSignaling.shared.send(event: "REQUEST_HANGUP", data: [:])
@@ -342,7 +341,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             callEventDelegate?.onCallStateChanged(.ended)
         }
         if let uuid = currentCall {
-            print("uuid ended: \(uuid)")
             let endCallAction = CXEndCallAction.init(call:uuid)
             let transaction = CXTransaction.init()
             transaction.addAction(endCallAction)
