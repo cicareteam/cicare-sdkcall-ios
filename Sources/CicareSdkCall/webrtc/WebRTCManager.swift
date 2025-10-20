@@ -162,7 +162,6 @@ class WebRTCManager: NSObject {
 
     func setMicEnabled(_ enabled: Bool) {
         if (audioTrack != nil) {
-            print("enable mic \(enabled)")
             audioTrack?.isEnabled = enabled
         } else {
             print("audio track not set yet")

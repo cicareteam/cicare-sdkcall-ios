@@ -121,7 +121,7 @@ class SocketManagerSignaling: NSObject {
             }*/
         }
         socket?.on("ANSWER_OK") { _, _ in
-            print("answer_ok")
+            //print("answer_ok")
         }
         socket?.on("MISSED_CALL") {_, _ in
             self.onCallStateChanged(.missed)
@@ -247,7 +247,6 @@ class SocketManagerSignaling: NSObject {
             break
         case .ended:
             self.delegate?.onCallStateChanged(state)
-            print("socket ended")
             CallService.sharedInstance.callStatus = .ended
             CallService.sharedInstance.endCall()
             break
