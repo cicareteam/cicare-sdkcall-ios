@@ -342,7 +342,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         if (callStatus != .ended) {
             callStatus = .ended
             CallService.sharedInstance.postCallStatus(.ended)
-            callEventDelegate?.onCallStateChanged(.ended)
+            //callEventDelegate?.onCallStateChanged(.ended)
         }
         if let uuid = currentCall {
             let endCallAction = CXEndCallAction.init(call:uuid)
@@ -355,6 +355,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                 }
             }
         }
+        //provider?.reportCall(with: currentCall, endedAt: Date(), reason: .remoteEnded)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.dismissCallScreen()
         }
@@ -370,7 +371,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             requestTransaction(transaction: transaction) { success in
                 if success {
                     //CallState.shared.currentCallUUID = nil
-                    SocketManagerSignaling.shared.disconnect()
+                    //SocketManagerSignaling.shared.disconnect()
                 }
             }
         }
@@ -402,8 +403,9 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     func declineCall() {
         if (self.isSignalingReady) {
+            //print("decline")
             SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
-            SocketManagerSignaling.shared.disconnect()
+            //SocketManagerSignaling.shared.disconnect()
         } else {
             SocketManagerSignaling.shared.callState = .refused
         }
@@ -567,16 +569,17 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         self.audioSession = nil
         self.screenIsShown = false
         self.pendingAnswerAction = nil
-        if (callStatus == .incoming) {
+        if (!isOutgoing && callStatus != .connecting && callStatus != .connected && callStatus != .ended) {
             if (self.isSignalingReady) {
                 SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
-                SocketManagerSignaling.shared.disconnect()
+                //SocketManagerSignaling.shared.disconnect()
             } else {
                 SocketManagerSignaling.shared.callState = .refused
             }
             NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
         } else if (isOutgoing && (callStatus == .calling || callStatus == .connecting || callStatus == .ringing)) {
             SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
+            //print("cancel")
             callStatus = .cancel
             self.callEventDelegate?.onCallStateChanged(.cancel)
             SocketManagerSignaling.shared.callState = .cancel
@@ -584,12 +587,14 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         if (callStatus != .ended && callStatus != .refused && callStatus != .busy && callStatus != .cancel) {
             callStatus = .ended
             self.postCallStatus(.ended)
-            self.callEventDelegate?.onCallStateChanged(.ended)
+            //self.callEventDelegate?.onCallStateChanged(.ended)
         }
         currentCall = nil
+        
         self.isSignalingReady = false
         delegate?.callDidEnd()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            SocketManagerSignaling.shared.callState = nil
             self.dismissCallScreen()
         }
         action.fulfill()
