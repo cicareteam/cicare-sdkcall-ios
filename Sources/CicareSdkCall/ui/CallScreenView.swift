@@ -144,6 +144,8 @@ public class CallScreenViewController: UIViewController {
             case .ended:
                 self.statusLabel.text = self.metaData["call_end"] ?? "Call End"
                 self.endedCall(delay: 0.5)
+            case .accepted:
+                self.statusLabel.text = self.metaData["call_accepted"] ?? "Call Accepted"
             case .connected:
                 self.isConnected = true
                 self.statusLabel.text = self.metaData["call_connected"] ?? "Connected"
@@ -188,6 +190,7 @@ public class CallScreenViewController: UIViewController {
             icon: icon
         ) {
             CallService.sharedInstance.endCall()
+            
             //self.endedCall(delay: 0.0)
         }
         DispatchQueue.main.async {
@@ -207,7 +210,7 @@ public class CallScreenViewController: UIViewController {
                 self.dismissScreen()
             }
         }
-        SocketManagerSignaling.shared.disconnect()
+        //SocketManagerSignaling.shared.disconnect()
     }
     
     @objc private func dismissScreen() {

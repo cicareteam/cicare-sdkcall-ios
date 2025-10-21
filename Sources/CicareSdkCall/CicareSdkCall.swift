@@ -150,7 +150,7 @@ public class CicareSdkCall: CallEventListener {
         calleeAvatar: String,
         checkSum: String,
         metaData: [String: String],
-        completion: @escaping (Result<Void, any Error>) -> Void
+        completion: @escaping (Result<Void, CallError>) -> Void
     ) {
         requestMicrophonePermission { granted in
             
