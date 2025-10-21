@@ -14,23 +14,6 @@ protocol CallManagerDelegate : AnyObject {
     func callDidFail()
 }
 
-enum CallError: LocalizedError {
-    case microphonePermissionDenied
-    case apiUnauthorized
-    case internalServerError(String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .microphonePermissionDenied:
-            return "Microphone permission denied."
-        case .apiUnauthorized:
-            return "Api Unauthorized."
-        case .internalServerError(let message):
-            return message
-        }
-    }
-}
-
 struct CallSession: Decodable {
     let server: String
     let token: String
@@ -47,8 +30,20 @@ struct CallSessionRequest: Codable {
 }
 
 final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
+    
+    private var isOutgoing: Bool = false
+    
     func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) {
+        isOutgoing = call.isOutgoing
+        if call.hasEnded {
+        } else if call.isOutgoing && !call.hasConnected {
+        } else if call.isOutgoing && call.hasConnected {
+        } else if !call.isOutgoing && !call.hasConnected && !call.hasEnded {
+        } else if !call.isOutgoing && call.hasConnected {
+        }
     }
+
+    private let callObserver = CXCallObserver()
     
     private var callerName: String?
     private var callerAvatar: String?
@@ -74,7 +69,6 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     var provider : CXProvider?
     var callController : CXCallController?
     var currentCall : UUID?
-    let callObserver = CXCallObserver()
     var callVC: UIViewController?
     
     var callStatus : CallStatus = .connecting
@@ -86,6 +80,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     private override init() {
         super.init()
         providerAndControllerSetup()
+        callObserver.setDelegate(self, queue: nil)
     }
     
     private func checkMicrophonePermission() -> Bool {
@@ -104,6 +99,10 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         @unknown default:
             return false
         }
+    }
+    
+    func isAnyCallActive() -> Bool {
+        return callObserver.calls.contains(where: { !$0.hasEnded })
     }
     
     /*private func setupPushKit() {
@@ -129,6 +128,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     
     // MARK: - CallKit Event Posting
     public func postCallStatus(_ status: CallStatus) {
+        callStatus = status
         NotificationCenter.default.post(name: .callStatusChanged, object: nil, userInfo: ["status" : status.rawValue])
     }
     
@@ -180,11 +180,11 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         
         self.ringing()
         self.isSignalingReady = false
-        //DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+        //DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
         if let url = URL(string: self.server) {
             SocketManagerSignaling.shared.connect(wssUrl: url, token: self.token) { status in
                 if status == .connected {
-                        SocketManagerSignaling.shared.ringingCall()
+                    SocketManagerSignaling.shared.ringingCall()
                 } else {
                     self.endCall()
                     self.callEventDelegate?.onCallStateChanged(.call_error)
@@ -204,6 +204,13 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         update.localizedCallerName = callerName
         update.hasVideo = false
         provider?.reportNewIncomingCall(with: incomingUUID, update: update) { [weak self] error in
+            if let self = self {
+                if (self.isAnyCallActive()) {
+                    self.provider?.reportCall(with: incomingUUID, endedAt: Date(), reason: .failed)
+                    self.callEventDelegate?.onCallStateChanged(.busy)
+                    SocketManagerSignaling.shared.callState = .busy
+                }
+            }
             if let error = error {
                 print("❌ Incoming call error: \(error)")
                 self?.delegate?.callDidFail()
@@ -239,7 +246,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     // MARK: - Memulai Panggilan Keluar
-    public func makeCall(handle: String, calleeName: String, calleeAvatar: String? = "", metaData: [String:String], callData: CallSessionRequest, completion: @escaping (Result<Void, any Error>) -> Void) {
+    public func makeCall(handle: String, calleeName: String, calleeAvatar: String? = "", metaData: [String:String], callData: CallSessionRequest, completion: @escaping (Result<Void, CallError>) -> Void) {
         
         self.answeredButNotReady = false
         self.callerName = calleeName
@@ -279,6 +286,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                                 transaction.addAction(action)
                                 self.requestTransaction(transaction: transaction) { success in
                                     if success {
+                                        completion(.success(()))
                                         self.postCallStatus(.calling)
                                         self.callEventDelegate?.onCallStateChanged(.calling)
                                         SocketManagerSignaling.shared.connect(wssUrl: wssUrl, token: callSession.token) { status in
@@ -291,7 +299,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                             }
                         } else {
                             self.callEventDelegate?.onCallStateChanged(.call_error)
-                            completion(.failure(CallError.internalServerError("server_null")))
+                            completion(.failure(CallError.internalServerError(code: 505, message: "Server not found")))
                             self.postNetworkStatus("server_not_found")
                         }
                         break
@@ -303,10 +311,10 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
                             completion(.failure(CallError.apiUnauthorized))
                             self.postNetworkStatus("call_failed_api")
                         case .badRequest(let data):
-                            completion(.failure(CallError.internalServerError(data.message)))
+                            completion(.failure(CallError.internalServerError(code: data.code ?? 400, message: data.message)))
                             self.postNetworkStatus(data.message)
                         default:
-                            completion(.failure(CallError.internalServerError("call_failed_api")))
+                            completion(.failure(CallError.internalServerError(code: 500, message: "Internal server error")))
                             self.postNetworkStatus("call_failed_api")
                         }
                     }
@@ -362,6 +370,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
             requestTransaction(transaction: transaction) { success in
                 if success {
                     //CallState.shared.currentCallUUID = nil
+                    SocketManagerSignaling.shared.disconnect()
                 }
             }
         }
@@ -374,6 +383,7 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         self.screenIsShown = false
         self.isSignalingReady = false
         SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
+        SocketManagerSignaling.shared.callState = .cancel
         self.postCallStatus(CallStatus.cancel)
         if let uuid = currentCall {
             let endCallAction = CXEndCallAction.init(call:uuid)
@@ -391,15 +401,20 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     }
     
     func declineCall() {
-        self.screenIsShown = false
-        self.isSignalingReady = false
-        SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
+        if (self.isSignalingReady) {
+            SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
+            SocketManagerSignaling.shared.disconnect()
+        } else {
+            SocketManagerSignaling.shared.callState = .refused
+        }
         if let uuid = currentCall {
             let endCallAction = CXEndCallAction(call: uuid)
             let transaction = CXTransaction()
             transaction.addAction(endCallAction)
             requestTransaction(transaction: transaction){ succes in
                 self.postCallStatus(.ended)
+                self.screenIsShown = false
+                self.isSignalingReady = false
             }
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -551,21 +566,28 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         self.audioSession = nil
         self.screenIsShown = false
-        self.isSignalingReady = false
         self.pendingAnswerAction = nil
         if (callStatus == .incoming) {
-            SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
+            if (self.isSignalingReady) {
+                SocketManagerSignaling.shared.send(event: "REJECT", data: [:])
+                SocketManagerSignaling.shared.disconnect()
+            } else {
+                SocketManagerSignaling.shared.callState = .refused
+            }
             NotificationManager.shared.showMissedOrEndedNotification(caller: self.callerName ?? "")
-        } else if (callStatus == .connecting || callStatus == .calling) {
+        } else if (isOutgoing && (callStatus == .calling || callStatus == .connecting || callStatus == .ringing)) {
             SocketManagerSignaling.shared.send(event: "CANCEL", data: [:])
+            callStatus = .cancel
+            self.callEventDelegate?.onCallStateChanged(.cancel)
+            SocketManagerSignaling.shared.callState = .cancel
         }
-        if (callStatus != .ended) {
+        if (callStatus != .ended && callStatus != .refused && callStatus != .busy && callStatus != .cancel) {
             callStatus = .ended
             self.postCallStatus(.ended)
             self.callEventDelegate?.onCallStateChanged(.ended)
         }
         currentCall = nil
-        SocketManagerSignaling.shared.disconnect()
+        self.isSignalingReady = false
         delegate?.callDidEnd()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.dismissCallScreen()

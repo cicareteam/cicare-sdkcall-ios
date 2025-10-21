@@ -13,7 +13,7 @@ source 'https://github.com/CocoaPods/Specs.git'
 
 target 'YourAppTarget' do
   use_frameworks!
-  pod 'CiCareSDKCallIOS', '1.2.1-rc.17'
+  pod 'CiCareSDKCallIOS', '1.2.1-rc.18'
 end
 ````
 
@@ -152,7 +152,9 @@ CicareSdkCall.shared.outgoing(
     calleeAvatar: "https://avatar.iran.liara.run/public",
     checkSum: "asdfasdf",
     metaData: meta
-)
+) { result in
+
+}
 ```
 
 ## ⚙ Call State Listener
@@ -169,13 +171,44 @@ class CallEventDelegate: CallEventListener {
 }
 
 ```
-
+State list are:
+* connecting: For outgoing it is trying to reach the server
+* calling: Outgoing call is in progress
+* ringing: Outgoing call is ringing on the callee
+* accepted: Outgoing call is accepted by the callee
+* connected: The call is connected in callee or in caller
+* end: The call is end normally
+* refused: The call is end cause refused by the callee
+* busy: The call is end cause the callee busy
+* cancel: Outgoing call is canceled
+* timeout: Outgoing call is not answered by the callee
 ---
+
+## Outgoing call error result and code
+When you make an outgoign call there are error code result
+```swift
+CicareSdkCall.shared.outgoing(...) { result in
+            switch result {
+                case .success:
+                    print("Call success")
+                case .failure(let error):
+                print("Error:", error.numericCode, error.localizedDescription)
+            }
+}
+```
+Error code list are:
+* 101: Mic permission denied
+* 401: Api unauthorized
+* 400: Some field is required
+* 505: Server not found
+* 500: Internal server error
+* 3: Call not found
+* some code is return from api checksum server
 
 ## 🔗 References
 
 * CocoaPods: [https://cocoapods.org/pods/CiCareSDKCallIOS](https://cocoapods.org/pods/CiCareSDKCallIOS)
-* Latest version: **1.2.1-rc.17**
+* Latest version: **1.2.1-rc.18**
 * Apple Docs:
 
   * [Push Notifications](https://developer.apple.com/documentation/usernotifications)

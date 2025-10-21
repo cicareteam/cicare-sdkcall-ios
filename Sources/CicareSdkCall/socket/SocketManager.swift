@@ -21,6 +21,7 @@ class SocketManagerSignaling: NSObject {
     private var manager: SocketManager?
     private var socket: SocketIOClient?
     private var isConnected: Bool = false
+    public var callState: CallStatus?
 
     private override init() {
         super.init()
@@ -58,7 +59,8 @@ class SocketManagerSignaling: NSObject {
         }
         socket?.on(clientEvent: .connect) { _, _ in
             self.isConnected = true
-            //print("connected")
+            //print("socket connected")
+            
             completion(.connected)
         }
         socket?.on(clientEvent: .disconnect) { _, _ in
@@ -82,7 +84,13 @@ class SocketManagerSignaling: NSObject {
     }
     
     func ringingCall() {
-        self.send(event: "RINGING_CALL", data: [:])
+        if (callState == .refused) {
+            self.send(event: "REJECT", data: [:])
+        } else if (callState == .busy) {
+            self.send(event: "BUSY", data: [:])
+        } else {
+            self.send(event: "RINGING_CALL", data: [:])
+        }
     }
     
     func muteCall(_ mute: Bool) {
@@ -131,11 +139,8 @@ class SocketManagerSignaling: NSObject {
             CallService.sharedInstance.isSignalingReady = true
             CallService.sharedInstance.connected()
         }
-        socket?.on("MISSED_CALL") {_, _ in
-            self.onCallStateChanged(.ended)
-        }
         socket?.on("ACCEPTED") { _, _ in
-            self.onCallStateChanged(.connected)
+            self.onCallStateChanged(.accepted)
             self.socket?.emit("CONNECTED")
         }
         socket?.on("CONNECTED") { _, _ in
@@ -147,6 +152,11 @@ class SocketManagerSignaling: NSObject {
         }
         socket?.on("HANGUP") { _, _ in
             self.onCallStateChanged(.ended)
+            self.send(event: "CLEARING_SESSION", data: [:])
+            self.disconnect()
+        }
+        socket?.on("NO_ANSWER") { _, _ in
+            self.onCallStateChanged(.timeout)
             self.send(event: "CLEARING_SESSION", data: [:])
             self.disconnect()
         }
@@ -215,19 +225,21 @@ class SocketManagerSignaling: NSObject {
     }
 
     func disconnect() {
+        //print("socket disconnected")
         if (self.isConnected) {
             socket?.removeAllHandlers()
             socket?.disconnect()
-            CallService.sharedInstance.postCallStatus(.ended)
-            CallService.sharedInstance.callVC?.dismiss(animated: true)
+            //CallService.sharedInstance.postCallStatus(.ended)
         }
         //
         socket = nil
         manager = nil
         isConnected = false
+        callState = nil
     }
     
     func onCallStateChanged(_ state: CallStatus) {
+        callState = state
         switch state {
         case .ringing_ok:
             CallService.sharedInstance.postCallStatus(state)
@@ -236,8 +248,13 @@ class SocketManagerSignaling: NSObject {
         case .missed:
             CallService.sharedInstance.missed()
             self.delegate?.onCallStateChanged(state)
+            CallService.sharedInstance.endCall()
             break;
         case .connected:
+            self.delegate?.onCallStateChanged(state)
+            CallService.sharedInstance.postCallStatus(state)
+            break
+        case .accepted:
             self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.postCallStatus(state)
             break
@@ -245,6 +262,10 @@ class SocketManagerSignaling: NSObject {
             self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.postCallStatus(state)
             break
+        case .timeout:
+            self.delegate?.onCallStateChanged(state)
+            CallService.sharedInstance.callStatus = .ended
+            CallService.sharedInstance.endCall()
         case .ended:
             self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.callStatus = .ended

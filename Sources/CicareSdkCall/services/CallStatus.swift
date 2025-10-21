@@ -12,6 +12,7 @@ public enum CallStatus: String {
     case ringing_ok
     case missed
     case answering
+    case accepted
     case connected
     case connecting
     case ringing
@@ -22,6 +23,7 @@ public enum CallStatus: String {
     case busy
     case cancel
     case call_error
+    case timeout
 }
 
 extension Notification.Name {
