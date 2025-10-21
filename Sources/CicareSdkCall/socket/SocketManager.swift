@@ -151,13 +151,21 @@ class SocketManagerSignaling: NSObject {
             self.onCallStateChanged(.ringing)
         }
         socket?.on("HANGUP") { _, _ in
-            self.onCallStateChanged(.ended)
+            //print("receive hangup")
+            if (self.callState != .cancel && self.callState != .refused && self.callState != .busy) {
+                self.callState = .ended
+            }
+            if let callState = self.callState {
+                self.onCallStateChanged(callState)
+            }
             self.send(event: "CLEARING_SESSION", data: [:])
+            self.callState = nil
             self.disconnect()
         }
         socket?.on("NO_ANSWER") { _, _ in
             self.onCallStateChanged(.timeout)
             self.send(event: "CLEARING_SESSION", data: [:])
+            self.callState = nil
             self.disconnect()
         }
         socket?.on("REJECTED") { _, _ in
@@ -220,6 +228,7 @@ class SocketManagerSignaling: NSObject {
 
     func send(event: String, data: [String: Any]) {
         if (self.isConnected) {
+            //print("send \(event)")
             socket?.emit(event, data)
         }
     }
@@ -269,7 +278,8 @@ class SocketManagerSignaling: NSObject {
         case .ended:
             self.delegate?.onCallStateChanged(state)
             CallService.sharedInstance.callStatus = .ended
-            CallService.sharedInstance.endCall()
+            CallService.sharedInstance.closedCall()
+            //CallService.sharedInstance.endCall()
             break
         case .refused:
             self.delegate?.onCallStateChanged(state)
