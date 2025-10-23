@@ -22,6 +22,10 @@ class SocketManagerSignaling: NSObject {
     private var socket: SocketIOClient?
     private var isConnected: Bool = false
     public var callState: CallStatus?
+    
+    private var connectStartTime: Date?
+    private var pingStartTime: Date?
+    private var timer: Timer?
 
     private override init() {
         super.init()
@@ -52,6 +56,9 @@ class SocketManagerSignaling: NSObject {
                                              .reconnects(true),
                                              .connectParams(["token": token])])
         socket = manager?.socket(forNamespace: "/")
+        
+        connectStartTime = Date()
+
         socket?.on(clientEvent: .statusChange) { data, _ in
                 if let status = data.first as? SocketIOClientStatus {
                     completion(status)
@@ -59,8 +66,13 @@ class SocketManagerSignaling: NSObject {
         }
         socket?.on(clientEvent: .connect) { _, _ in
             self.isConnected = true
-            //print("socket connected")
-            
+            if let start = self.connectStartTime {
+                let elapsed = Date().timeIntervalSince(start)
+                if elapsed > 1.5 {
+                    NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
+                }
+            }
+            self.startPingMonitoring()
             completion(.connected)
         }
         socket?.on(clientEvent: .disconnect) { _, _ in
@@ -79,8 +91,34 @@ class SocketManagerSignaling: NSObject {
         socket?.connect()
     }
     
+    private func startPingMonitoring() {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
+            self.sendPing()
+        }
+    }
+
+    private func sendPing() {
+        pingStartTime = Date()
+        socket?.emit("PING")
+    }
+
+    private func handlePong() {
+        guard let start = pingStartTime else { return }
+        let latency = Date().timeIntervalSince(start) * 1000
+        if latency > 300 {
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
+        } else {
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "other"])
+        }
+    }
+    
     func initCall() {
-        self.send(event: "INIT_CALL", data: [:])
+        if (callState == .cancel) {
+            self.send(event: "CANCEL", data: [:])
+        } else {
+            self.send(event: "INIT_CALL", data: [:])
+        }
     }
     
     func ringingCall() {
@@ -127,6 +165,9 @@ class SocketManagerSignaling: NSObject {
                     }
                 }
             }*/
+        }
+        socket?.on("PONG") { _, _ in
+            self.handlePong()
         }
         socket?.on("ANSWER_OK") { _, _ in
             //print("answer_ok")
@@ -245,6 +286,8 @@ class SocketManagerSignaling: NSObject {
         manager = nil
         isConnected = false
         callState = nil
+        timer?.invalidate()
+        timer = nil
     }
     
     func onCallStateChanged(_ state: CallStatus) {
