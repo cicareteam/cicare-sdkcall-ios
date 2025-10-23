@@ -60,12 +60,12 @@ public class CallScreenViewController: UIViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(handleCallStatus(_:)), name: .callStatusChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(callProfileSet(_:)), name: .callProfileSet, object: "")
         NotificationCenter.default.addObserver(self, selector: #selector(handleNetworkSignal(_:)), name: .callNetworkChanged, object: nil)
-        NotificationCenter.default.addObserver(
+        /*NotificationCenter.default.addObserver(
             self,
             selector: #selector(dismissScreen),
             name: UIApplication.didBecomeActiveNotification,
             object: nil
-        )
+        )*/
     }
     
     @objc private func handleNetworkSignal(_ notification: Notification) {
@@ -133,13 +133,13 @@ public class CallScreenViewController: UIViewController {
         DispatchQueue.main.async {
             switch status {
             case .incoming:
+                self.isConnected = true
                 self.statusLabel.text = self.metaData["call_incoming"]
                 //self.updateUIForIncomingCall()
             case .calling:
                 self.statusLabel.text = self.metaData["call_calling"] ?? "Calling..."
                 //self.updateUIForOutgoingCall()
             case .ongoing:
-                self.isConnected = true
                 self.statusLabel.text = self.metaData["call_connected"] ?? "Connected"
             case .ended:
                 self.statusLabel.text = self.metaData["call_end"] ?? "Call End"
@@ -157,6 +157,7 @@ public class CallScreenViewController: UIViewController {
                     self.connectedButtonStack.isHidden = false
                 }
             case .connecting:
+                self.isConnected = true
                 self.statusLabel.text = self.metaData["call_connecting"] ?? "Connecting"
                 if CallService.sharedInstance.answeredButNotReady {
                     DispatchQueue.main.async {
@@ -189,9 +190,7 @@ public class CallScreenViewController: UIViewController {
             message: text,
             icon: icon
         ) {
-            CallService.sharedInstance.endCall()
-            
-            //self.endedCall(delay: 0.0)
+            self.endedCall(delay: 0.0)
         }
         DispatchQueue.main.async {
             toast.show(in: self.view)
@@ -199,32 +198,28 @@ public class CallScreenViewController: UIViewController {
     }
 
     func endedCall(delay: Double = 1.5) {
-        if (!dismissed) {
-            self.isConnected = false
-            self.pendingDismissed = true
-            self.callDurationTimer?.invalidate()
-            self.muteButton.isEnabled = false
-            self.speakerButton.isEnabled = false
-            self.endButton.isEnabled = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                self.dismissScreen()
-            }
-        }
+        //if (!dismissed) {
+        self.isConnected = false
+     //   self.pendingDismissed = true
+        self.callDurationTimer?.invalidate()
+        self.muteButton.isEnabled = false
+        self.speakerButton.isEnabled = false
+        self.endButton.isEnabled = false
+        //print("end call")
+        CallService.sharedInstance.closedCall()
+        //}
         //SocketManagerSignaling.shared.disconnect()
     }
     
-    @objc private func dismissScreen() {
+    /*@objc private func dismissScreen() {
         if (self.pendingDismissed) {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [self] in
-                self.dismiss(animated: true) {
-                    self.dismissed = true
-                    self.pendingDismissed = false
-                    //CallService.sharedInstance.callVC = nil
-                    CallService.sharedInstance.dismissCallScreen()
-                }
-            }
+            self.dismissed = true
+            self.pendingDismissed = false
+            //print("dismissed")
+            //CallService.sharedInstance.callVC = nil
+            CallService.sharedInstance.closedCall()
         }
-    }
+    }*/
     
     deinit {
         NotificationCenter.default.removeObserver(self)
