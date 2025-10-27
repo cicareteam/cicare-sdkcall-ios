@@ -142,29 +142,6 @@ class SocketManagerSignaling: NSObject {
         }
         socket?.on("INIT_OK") { _, _ in
             self.initOffer()
-            /*if let webrtc = self.webrtcManager {
-                if (!webrtc.isPeerConnectionActive()) {
-                    webrtc.reinit()
-                }
-                webrtc.initMic()
-                self.onCallStateChanged(.calling)
-                webrtc.createOffer { result in
-                    switch result {
-                    case .success(let sdpDesc):
-                        let sdpPayload: [String: String] = [
-                            "type": "offer",
-                            "sdp": sdpDesc.sdp
-                        ]
-                        let payload: [String: Any] = [
-                            "is_caller": true,
-                            "sdp": sdpPayload
-                        ]
-                        self.send(event: "SDP_OFFER", data: payload)
-                    case .failure(let error):
-                        print("Failed to create offer:", error.localizedDescription)
-                    }
-                }
-            }*/
         }
         socket?.on("PONG") { _, _ in
             self.handlePong()

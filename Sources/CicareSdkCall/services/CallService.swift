@@ -6,10 +6,10 @@ import PushKit
 import SwiftUI
 
 protocol CallManagerDelegate : AnyObject {
-    
     func callDidAnswer()
     func callDidConnected()
     func callDidEnd()
+    func callInprogress()
     func callDidHold(isOnHold : Bool)
     func callDidFail()
 }
@@ -19,6 +19,7 @@ struct CallSession: Decodable {
     let token: String
     let isFromPhone: Bool?
 }
+
 struct CallSessionRequest: Codable {
     let callerId: String
     let callerName: String
@@ -206,8 +207,8 @@ final class CallService: NSObject, CXCallObserverDelegate, CXProviderDelegate {
         update.hasVideo = false
         provider?.reportNewIncomingCall(with: incomingUUID, update: update) { [weak self] error in
             if let self = self {
-                //if (self.currentCall != nil && self.currentCall != incomingUUID) {
-                if (isAnyCallActive()) {
+                if (self.currentCall != nil && self.currentCall != incomingUUID) {
+                //if (isAnyCallActive()) {
                     self.provider?.reportCall(with: incomingUUID, endedAt: Date(), reason: .failed)
                     self.callEventDelegate?.onCallStateChanged(.busy)
                     SocketManagerSignaling.shared.callState = .busy

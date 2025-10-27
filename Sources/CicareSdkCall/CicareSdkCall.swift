@@ -132,12 +132,15 @@ public class CicareSdkCall: CallEventListener {
         let callerName = callerName == "" ? "Green SM Driver" : callerName
         _ = calleeName == "" ? "Green SM Customer" : calleeName
         let merged = self.metaData.merging(metaData) { _, new in new }
-        CallService.sharedInstance.reportIncomingCall(
+        CallManager.sharedInstance.reportIncomingCall(
+            callerId: callerId,
             callerName: callerName,
             avatarUrl: callerAvatar,
             metaData: merged,
             onMessageClicked: onMessageClicked
-        )
+        ) {
+            
+        }
         //self.showCallScreen(calleeName: callerName, callStatus: CallStatus.incoming.rawValue, avatarUrl: callerAvatar, metaData: merged)
     }
 
