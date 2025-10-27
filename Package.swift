@@ -33,7 +33,6 @@ let package = Package(
                 .product(name: "CryptoSwift", package: "CryptoSwift")
             ],
             resources: [
-                .process("Resources"),
                 .process("Media.xcassets")
             ]
         ),
@@ -42,10 +41,6 @@ let package = Package(
             dependencies: [
                 "CicareSdkCall",
                 .product(name: "SocketIO", package: "socket.io-client-swift")
-            ],
-            resources: [
-                .process("Resources"),
-                .process("Media.xcassets")
             ]
         ),
     ]

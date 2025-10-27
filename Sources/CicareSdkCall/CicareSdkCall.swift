@@ -83,8 +83,7 @@ public class CicareSdkCall: CallEventListener {
             
     private init() {
         _ = NotificationManager.shared
-        SocketManagerSignaling.shared.delegate = self
-        CallService.sharedInstance.callEventDelegate = self
+        CallManager.sharedInstance.delegate = self
     }
     
     public func setAPI(baseUrl: String, token: String) {
@@ -138,7 +137,7 @@ public class CicareSdkCall: CallEventListener {
             avatarUrl: callerAvatar,
             metaData: merged,
             onMessageClicked: onMessageClicked
-        ) {
+        ) {_ in 
             
         }
         //self.showCallScreen(calleeName: callerName, callStatus: CallStatus.incoming.rawValue, avatarUrl: callerAvatar, metaData: merged)
@@ -157,13 +156,13 @@ public class CicareSdkCall: CallEventListener {
     ) {
         requestMicrophonePermission { granted in
             
-            //if (granted) {
+            if (granted) {
                 let callerName = callerName == "" ? "Green SM Driver" : callerName
                 let calleeName = calleeName == "" ? "Green SM Customer" : calleeName
                 var merged = self.metaData.merging(metaData) { _, new in new }
                 merged["call_name_title"] = calleeName
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                    CallService.sharedInstance.makeCall(handle: callerId, calleeName: calleeName, metaData: merged, callData: CallSessionRequest(
+                    CallManager.sharedInstance.outgoingCall(handle: callerId, calleeId: calleeId, calleeName: calleeName, metaData: merged, callData: CallSessionRequest(
                         callerId: callerId,
                         callerName: callerName,
                         callerAvatar: callerAvatar,
@@ -175,7 +174,7 @@ public class CicareSdkCall: CallEventListener {
                         completion(error)
                     }
                 }
-            //}
+            }
         }
         /*showCallScreen(
             calleeName: calleeName,

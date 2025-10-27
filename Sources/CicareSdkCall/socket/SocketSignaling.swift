@@ -14,6 +14,11 @@ protocol SignalingDelegate: AnyObject {
     func initCall()
 }
 
+enum SocketIOClientStatus: String {
+    case connected
+    case disconnected
+}
+
 class SocketSignaling {
     
     private var webrtcManager: WebRTCManager?
@@ -25,14 +30,17 @@ class SocketSignaling {
     private var timer: Timer?
     private var callState: CallStatus?
     
+    private var uuid: UUID?
     private var callService: CallServiceDelegate?
     
     private var isConnected = false
     private var pendingActions: [() -> Void] = []
     
 
-    init(callService: CallServiceDelegate) {
-        self.callService = callService 
+    init(callService: CallServiceDelegate, uuid: UUID) {
+        self.callService = callService
+        webrtcManager = WebRTCManager()
+        self.uuid = uuid
     }
     
     func convertToWebSocket(url: URL) -> URL? {
@@ -88,12 +96,14 @@ class SocketSignaling {
             self.manager = nil
             self.socket = nil
             completion(.disconnected)
+            self.close()
         }
         socket?.on(clientEvent: .error) { _, _ in
             self.isConnected = false
             self.manager = nil
             self.socket = nil
             completion(.disconnected)
+            self.close()
         }
 
         registerHandlers()
@@ -108,7 +118,6 @@ class SocketSignaling {
             self.handlePong()
         }
         socket?.on("ANSWER_OK") { _, _ in
-            //print("answer_ok")
         }
         socket?.on("MISSED_CALL") {_, _ in
             //self.onCallStateChanged(.missed)
@@ -118,37 +127,35 @@ class SocketSignaling {
         socket?.on("ACCEPTED") { _, _ in
             //self.onCallStateChanged(.accepted)
             self.socket?.emit("CONNECTED")
+            self.callService?.callAccepted()
         }
         socket?.on("CONNECTED") { _, _ in
             //self.onCallStateChanged(.connected)
             self.socket?.emit("CONNECTED")
+            self.callService?.callConnected()
         }
         socket?.on("RINGING") { _, _ in
-            //self.onCallStateChanged(.ringing)
+            self.callService?.callRinging()
         }
         socket?.on("HANGUP") { _, _ in
-            //print("receive hangup")
-            if (self.callState != .cancel && self.callState != .refused && self.callState != .busy) {
-                self.callState = .ended
+            if (self.callState != .ended && self.callState != .refused  && self.callState != .busy) {
+                self.callService?.endedCall(uuid: self.uuid!, callState: .ended)
             }
-            if let callState = self.callState {
-                //self.onCallStateChanged(callState)
-            }
+            self.callService = nil
             self.send(event: "CLEARING_SESSION", data: [:])
-            self.callState = nil
-            //self.disconnect()
+            self.close()
         }
         socket?.on("NO_ANSWER") { _, _ in
-            //self.onCallStateChanged(.timeout)
+            self.callService?.endedCall(uuid: self.uuid!, callState: .timeout)
             self.send(event: "CLEARING_SESSION", data: [:])
             self.callState = nil
             //self.disconnect()
         }
         socket?.on("REJECTED") { _, _ in
-            //self.onCallStateChanged(.refused)
+            self.callService?.callRejected()
         }
         socket?.on("BUSY") { _, _ in
-            //self.onCallStateChanged(.busy)
+            self.callService?.callBusy()
         }
         socket?.on("SDP_OFFER") { data, _ in
             guard let dict = data.first as? [String: Any],
@@ -208,15 +215,28 @@ class SocketSignaling {
     }
     
     func setCallState(_ state: CallStatus, completion: (() -> Void)? = nil) {
+        callState = state
         switch state {
+        case .busy:
+            socket?.emitWithAck("BUSY", ["reason": "ended"]).timingOut(after: 3) { data in
+                completion?()
+            }
+        case .cancel:
+            socket?.emitWithAck("CANCEL", ["reason": "ended"]).timingOut(after: 3) { data in
+                completion?()
+            }
         case .ended:
-            // kirim event hangup ke server
             socket?.emitWithAck("REQUEST_HANGUP", ["reason": "ended"]).timingOut(after: 3) { data in
                 completion?()
             }
         default:
             break
         }
+    }
+    
+    func rejectCall() {
+        callState = .ended
+        emit("REJECT", [:])
     }
     
     func answerCall(completion: (() -> Void)? = nil) {
@@ -235,7 +255,6 @@ class SocketSignaling {
     
     func send(event: String, data: [String: Any]) {
         if (self.isConnected) {
-            //print("send \(event)")
             socket?.emit(event, data)
         }
     }
@@ -245,7 +264,6 @@ class SocketSignaling {
             if (!webrtc.isPeerConnectionActive()) {
                 webrtc.reinit()
             }
-            //self.onCallStateChanged(.answering)
             webrtc.initMic()
             webrtc.createOffer { result in
                 switch result {
@@ -271,10 +289,22 @@ class SocketSignaling {
         webrtcManager = nil
     }
     
+    func muteCall(_ mute: Bool) {
+        self.webrtcManager?.setMicEnabled(!mute);
+    }
+    
+    func initCall() {
+        if (callState == .cancel) {
+            self.send(event: "CANCEL", data: [:])
+        } else {
+            self.send(event: "INIT_CALL", data: [:])
+        }
+    }
+    
     func close() {
         guard isConnected else { return }
         isConnected = false
-        
+        self.callService?.endCall(uuid: self.uuid!)
         socket?.disconnect()
         socket?.removeAllHandlers()
         socket = nil

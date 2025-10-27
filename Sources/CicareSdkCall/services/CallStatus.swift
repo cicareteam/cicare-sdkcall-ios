@@ -31,3 +31,7 @@ extension Notification.Name {
     static let callProfileSet = Notification.Name("callProfileSet")
     static let callNetworkChanged = Notification.Name("callNetworkChanged")
 }
+
+public protocol CallEventListener: AnyObject {
+    func onCallStateChanged(_ status: CallStatus)
+}

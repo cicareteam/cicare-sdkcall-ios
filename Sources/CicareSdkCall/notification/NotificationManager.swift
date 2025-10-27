@@ -79,15 +79,13 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
         switch response.actionIdentifier {
         case "ACCEPT_CALL":
-            //print("User accepted call")
+            print("User accepted call")
             //if let uuid = CallState.shared.currentCallUUID {
-            CallService.sharedInstance.answerCall()
             //}
             // Trigger your accept call logic here
         case "REJECT_CALL":
-            //print("User rejected call")
+            print("User rejected call")
             //if CallState.shared.currentCallUUID != nil {
-            CallService.sharedInstance.endCall()
             //}
             // Trigger your reject call logic here
         default:
