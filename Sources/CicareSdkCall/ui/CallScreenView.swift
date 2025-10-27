@@ -131,6 +131,10 @@ public class CallScreenViewController: UIViewController {
         
         self.callStatus = status.rawValue
         DispatchQueue.main.async {
+            self.endButton.button.isEnabled = true
+        }
+        
+        DispatchQueue.main.async {
             switch status {
             case .incoming:
                 self.isConnected = true
@@ -159,12 +163,16 @@ public class CallScreenViewController: UIViewController {
             case .connecting:
                 self.isConnected = true
                 self.statusLabel.text = self.metaData["call_connecting"] ?? "Connecting"
-                if CallService.sharedInstance.answeredButNotReady {
+                DispatchQueue.main.async {
+                    self.incomingButtonStack.isHidden = true
+                    self.connectedButtonStack.isHidden = false
+                }
+                /*if CallService.sharedInstance.answeredButNotReady {
                     DispatchQueue.main.async {
                         self.incomingButtonStack.isHidden = true
                         self.connectedButtonStack.isHidden = false
                     }
-                }
+                }*/
             case .ringing:
                 self.statusLabel.text = self.metaData["call_ringing"] ?? "Ringing"
             case .answering:
@@ -174,6 +182,9 @@ public class CallScreenViewController: UIViewController {
                 self.endedCall(delay: 1.5)
             case .refused:
                 self.statusLabel.text = self.metaData["call_refused"] ?? "Declined"
+                self.endedCall(delay: 1.5)
+            case .timeout:
+                self.statusLabel.text = self.metaData["call_timeout"] ?? "No Answer"
                 self.endedCall(delay: 1.5)
             case .cancel:
                 self.statusLabel.text = self.metaData["call_cancel"] ?? "Canceled"
@@ -191,6 +202,8 @@ public class CallScreenViewController: UIViewController {
             icon: icon
         ) {
             self.endedCall(delay: 0.0)
+            CallManager.sharedInstance.endActiveCall()
+            CallManager.sharedInstance.dismissCallScreen()
         }
         DispatchQueue.main.async {
             toast.show(in: self.view)
@@ -206,7 +219,6 @@ public class CallScreenViewController: UIViewController {
         self.speakerButton.isEnabled = false
         self.endButton.isEnabled = false
         //print("end call")
-        CallService.sharedInstance.closedCall()
         //}
         //SocketManagerSignaling.shared.disconnect()
     }
@@ -401,15 +413,7 @@ public class CallScreenViewController: UIViewController {
             self.muteButton.icon = self.isMuted ? self.compatibleImage(named: "mic.slash", systemName: "mic.slash.fill") : self.compatibleImage(named: "mic.slash", systemName: "mic.slash")
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
-            if let uuid = CallService.sharedInstance.currentCall {
-                let muteAction = CXSetMutedCallAction(call: uuid, muted: self.isMuted)
-                let transaction = CXTransaction(action: muteAction)
-                CallService.sharedInstance.requestTransaction(transaction: transaction) { success in
-                    if (success) {
-                        print("mute success")
-                    }
-                }
-            }
+            CallManager.sharedInstance.muteCall(isMuted: self.isMuted)
             
         }
         muteButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
@@ -470,7 +474,7 @@ public class CallScreenViewController: UIViewController {
             backgroundColor: .red
         ) {
             //if CallState.shared.currentCallUUID != nil {
-            CallService.sharedInstance.declineCall()
+            //CallService.sharedInstance.declineCall()
             //} else {
             //    self.endedCall()
             //}
@@ -483,7 +487,7 @@ public class CallScreenViewController: UIViewController {
             backgroundColor: .green
         ) {
             //if let uuid = CallState.shared.currentCallUUID {
-            CallService.sharedInstance.answerCall()
+            //CallService.sharedInstance.answerCall()
             //}
         }
         answerCallButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
@@ -509,15 +513,7 @@ public class CallScreenViewController: UIViewController {
             self.muteButton.icon = self.isMuted ? self.compatibleImage(named: "mic.slash", systemName: "mic.slash.fill") : self.compatibleImage(named: "mic.slash", systemName: "mic.slash")
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
-            if let uuid = CallService.sharedInstance.currentCall {
-                let muteAction = CXSetMutedCallAction(call: uuid, muted: self.isMuted)
-                let transaction = CXTransaction(action: muteAction)
-                CallService.sharedInstance.requestTransaction(transaction: transaction) { success in
-                    if (success) {
-                        print("mute success")
-                    }
-                }
-            }
+            CallManager.sharedInstance.muteCall(isMuted: self.isMuted)
         }
         muteButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
         muteButton.isEnabled = false
@@ -563,13 +559,7 @@ public class CallScreenViewController: UIViewController {
             iconColor: .white,
             backgroundColor: .red
         ) {
-            if (!self.isConnected) {
-                self.statusLabel.text = self.metaData["call_end"]
-                CallService.sharedInstance.cancelCall()
-            } else {
-                self.isConnected = false
-                CallService.sharedInstance.endCall()
-            }
+            CallManager.sharedInstance.endActiveCall()
             // Handle end call action here
         }
         endButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
