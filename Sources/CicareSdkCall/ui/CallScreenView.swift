@@ -78,11 +78,10 @@ public class CallScreenViewController: UIViewController {
 
         setupUI()
         requestMicrophonePermission { granted in
-            print ("mic granted \(granted)")
-            if !granted {
+            /*if !granted {
                 CallManager.sharedInstance.endCallOnDeniedMic()
                 self.showErrorConnectionAlert(text: self.metaData["call_failed_mic_permission_denied"] ?? "Call failed, mic permission denied",icon: nil)
-            }
+            }*/
         }
         NotificationCenter.default.addObserver(self, selector: #selector(handleCallStatus(_:)), name: .callStatusChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(callProfileSet(_:)), name: .callProfileSet, object: "")

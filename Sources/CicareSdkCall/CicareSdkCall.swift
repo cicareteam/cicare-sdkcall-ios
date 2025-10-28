@@ -154,28 +154,22 @@ public class CicareSdkCall: CallEventListener {
         metaData: [String: String],
         completion: @escaping (Result<Void, CallError>) -> Void
     ) {
-        requestMicrophonePermission { granted in
-            
-            if (granted) {
-                let callerName = callerName == "" ? "Green SM Driver" : callerName
-                let calleeName = calleeName == "" ? "Green SM Customer" : calleeName
-                var merged = self.metaData.merging(metaData) { _, new in new }
-                merged["call_name_title"] = calleeName
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                    CallManager.sharedInstance.outgoingCall(handle: callerId, calleeId: calleeId, calleeName: calleeName, metaData: merged, callData: CallSessionRequest(
-                        callerId: callerId,
-                        callerName: callerName,
-                        callerAvatar: callerAvatar,
-                        calleeId: calleeId,
-                        calleeName: calleeName,
-                        calleeAvatar: calleeAvatar,
-                        checkSum: checkSum
-                    )) { error in
-                        completion(error)
-                    }
-                }
-            } else {
-                completion(.failure(CallError.microphonePermissionDenied))
+        
+        let callerName = callerName == "" ? "Green SM Driver" : callerName
+        let calleeName = calleeName == "" ? "Green SM Customer" : calleeName
+        var merged = self.metaData.merging(metaData) { _, new in new }
+        merged["call_name_title"] = calleeName
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            CallManager.sharedInstance.outgoingCall(handle: callerId, calleeId: calleeId, calleeName: calleeName, metaData: merged, callData: CallSessionRequest(
+                callerId: callerId,
+                callerName: callerName,
+                callerAvatar: callerAvatar,
+                calleeId: calleeId,
+                calleeName: calleeName,
+                calleeAvatar: calleeAvatar,
+                checkSum: checkSum
+            )) { error in
+                completion(error)
             }
         }
         /*showCallScreen(
