@@ -43,6 +43,26 @@ public class CallScreenViewController: UIViewController {
         fatalError("init(coder:) has not been implemented")
     }
     
+    private func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
+        switch AVAudioSession.sharedInstance().recordPermission {
+        case .granted:
+            completion(true)
+            
+        case .denied:
+            completion(false)
+            
+        case .undetermined:
+            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+                DispatchQueue.main.async {
+                    completion(granted)
+                }
+            }
+            
+        @unknown default:
+            completion(false)
+        }
+    }
+    
     public override func viewDidLoad() {
         super.viewDidLoad()
         let gradientBackground = MultiLayerGradientView(frame: view.bounds)
@@ -57,6 +77,13 @@ public class CallScreenViewController: UIViewController {
         monitor.start(queue: queue)
 
         setupUI()
+        requestMicrophonePermission { granted in
+            print ("mic granted \(granted)")
+            if !granted {
+                CallManager.sharedInstance.endCallOnDeniedMic()
+                self.showErrorConnectionAlert(text: self.metaData["call_failed_mic_permission_denied"] ?? "Call failed, mic permission denied",icon: nil)
+            }
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(handleCallStatus(_:)), name: .callStatusChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(callProfileSet(_:)), name: .callProfileSet, object: "")
         NotificationCenter.default.addObserver(self, selector: #selector(handleNetworkSignal(_:)), name: .callNetworkChanged, object: nil)
@@ -141,6 +168,7 @@ public class CallScreenViewController: UIViewController {
                 self.statusLabel.text = self.metaData["call_incoming"]
                 //self.updateUIForIncomingCall()
             case .calling:
+                self.isConnected = true
                 self.statusLabel.text = self.metaData["call_calling"] ?? "Calling..."
                 //self.updateUIForOutgoingCall()
             case .ongoing:

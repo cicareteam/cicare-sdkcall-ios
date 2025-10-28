@@ -363,6 +363,21 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         }
     }
     
+    func endCallOnDeniedMic() {
+        if let uuid = self.currentCall {
+            let endCallAction = CXEndCallAction.init(call:uuid)
+            let transaction = CXTransaction.init()
+            transaction.addAction(endCallAction)
+            requestTransaction(transaction: transaction) { success in
+                self.calls[uuid]?.signaling.setCallState(.ended)
+                self.postCallStatus(.ended)
+                self.calls[uuid]?.signaling.releaseWebrtc()
+                self.calls.removeValue(forKey: uuid)
+                self.currentCall = nil
+            }
+        }
+    }
+    
     func endCall(uuid: UUID) {
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
@@ -413,27 +428,20 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         self.postCallStatus(.connecting)
         self.calls[action.callUUID]?.callStatus = .connecting
         
-        self.requestMicrophonePermission { granted in
-            if (granted) {
-                for (uuid, call) in self.calls {
-                    if (uuid != action.callUUID) {
-                        self.endCall(uuid: uuid)
-                    } else {
-                        self.currentCall = action.callUUID
-                        call.signaling.answerCall() {
-                            self.calls[action.callUUID]?.callStatus = .connected
-                            self.postCallStatus(.connected)
-                            self.configureAudioSession()
-                            call.signaling.initOffer()
-                        }
-                    }
-                }
-                action.fulfill()
+        for (uuid, call) in self.calls {
+            if (uuid != action.callUUID) {
+                self.endCall(uuid: uuid)
             } else {
-                action.fulfill()
-                self.endCall(uuid: action.callUUID)
+                self.currentCall = action.callUUID
+                call.signaling.answerCall() {
+                    self.calls[action.callUUID]?.callStatus = .connected
+                    self.postCallStatus(.connected)
+                    self.configureAudioSession()
+                    call.signaling.initOffer()
+                }
             }
         }
+        action.fulfill()
     }
     
     func provider(_ provider: CXProvider, perform action: CXSetHeldCallAction) {
@@ -481,8 +489,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
         if (calls[action.callUUID]?.callStatus == .incoming) {
             rejectCall()
-        } else if (self.screenIsShown) {
-            self.dismissCallScreen()
         }
         action.fulfill()
     }
@@ -512,6 +518,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     private func showCallScreen(uuid: UUID, callStatus: String) {
+        guard self.calls[uuid] != nil else { return }
         self.screenIsShown = true
         // Tutup window lama jika ada
         self.callWindow?.isHidden = true

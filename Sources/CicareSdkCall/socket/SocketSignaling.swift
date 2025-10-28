@@ -36,11 +36,13 @@ class SocketSignaling {
     private var isConnected = false
     private var pendingActions: [() -> Void] = []
     
+    private var isCallConnected = false
+    
 
     init(callService: CallServiceDelegate, uuid: UUID) {
         self.callService = callService
-        webrtcManager = WebRTCManager()
         self.uuid = uuid
+        isCallConnected = false
     }
     
     func convertToWebSocket(url: URL) -> URL? {
@@ -60,6 +62,8 @@ class SocketSignaling {
     }
     
     func connect(wssUrl: URL, token: String, completion: @escaping (SocketIOClientStatus) -> Void) {
+        webrtcManager = WebRTCManager()
+        self.webrtcManager?.callback = self
         manager = SocketManager(socketURL: wssUrl,
                                     config: [.log(false),
                                              .compress,
@@ -79,6 +83,7 @@ class SocketSignaling {
         socket?.on(clientEvent: .connect) { _, _ in
             if let start = self.connectStartTime {
                 let elapsed = Date().timeIntervalSince(start)
+                print("latency on connect \(elapsed)")
                 if elapsed > 1.5 {
                     NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
                 }
@@ -126,13 +131,20 @@ class SocketSignaling {
         }
         socket?.on("ACCEPTED") { _, _ in
             //self.onCallStateChanged(.accepted)
-            self.socket?.emit("CONNECTED")
+            //self.socket?.emit("CONNECTED")
             self.callService?.callAccepted()
+            if (!self.isCallConnected) {
+                self.callService?.callConnected()
+                self.isCallConnected = true
+            }
         }
         socket?.on("CONNECTED") { _, _ in
             //self.onCallStateChanged(.connected)
-            self.socket?.emit("CONNECTED")
-            self.callService?.callConnected()
+            //self.socket?.emit("CONNECTED")
+            if (!self.isCallConnected) {
+                self.callService?.callConnected()
+                self.isCallConnected = true
+            }
         }
         socket?.on("RINGING") { _, _ in
             self.callService?.callRinging()
@@ -186,8 +198,12 @@ class SocketSignaling {
     }
 
     private func sendPing() {
-        pingStartTime = Date()
-        socket?.emit("PING")
+        if (pingStartTime == nil) {
+            pingStartTime = Date()
+            socket?.emit("PING")
+        } else {
+            handlePong()
+        }
     }
 
     private func handlePong() {
@@ -198,6 +214,7 @@ class SocketSignaling {
         } else {
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "other"])
         }
+        pingStartTime = nil
     }
     
     func emit(_ event: String, _ data: [String: Any], completion: (() -> Void)? = nil) {
@@ -307,6 +324,8 @@ class SocketSignaling {
         self.callService?.endCall(uuid: self.uuid!)
         socket?.disconnect()
         socket?.removeAllHandlers()
+        timer?.invalidate()
+        timer = nil
         socket = nil
         
     }
@@ -314,4 +333,39 @@ class SocketSignaling {
     deinit {
         close()
     }
+}
+
+extension SocketSignaling: WebRTCEventCallback {
+    func onLocalSdpCreated(sdp: RTCSessionDescription) {
+        send(event: "SDP_OFFER", data: ["sdp": sdp.sdp])
+    }
+    func onIceCandidateGenerated(candidate: RTCIceCandidate) {
+        send(event: "ICE_CANDIDATE", data: ["candidate": candidate.sdp])
+    }
+    func onRemoteStreamReceived(stream: RTCMediaStream) {
+        // optional: handle remote media stream
+    }
+    func onConnectionStateChanged(state: RTCPeerConnectionState) {
+        // optional: map state to callEventListener if needed
+    }
+    func onIceConnectionStateChanged(state: RTCIceConnectionState) {
+        switch state {
+        case .disconnected:
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "disconnected"])
+            break
+        case .failed:
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
+            break
+        case .closed:
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "lost"])
+            break
+        case .connected, .completed:
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
+            break
+        default:
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "other"])
+            break
+        }
+    }
+    func onIceGatheringStateChanged(state: RTCIceGatheringState) {}
 }
