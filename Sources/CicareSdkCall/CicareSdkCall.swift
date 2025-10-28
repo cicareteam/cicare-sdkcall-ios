@@ -174,6 +174,8 @@ public class CicareSdkCall: CallEventListener {
                         completion(error)
                     }
                 }
+            } else {
+                completion(.failure(CallError.microphonePermissionDenied))
             }
         }
         /*showCallScreen(
