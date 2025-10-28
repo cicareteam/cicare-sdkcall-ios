@@ -83,7 +83,6 @@ class SocketSignaling {
         socket?.on(clientEvent: .connect) { _, _ in
             if let start = self.connectStartTime {
                 let elapsed = Date().timeIntervalSince(start)
-                print("latency on connect \(elapsed)")
                 if elapsed > 1.5 {
                     NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
                 }
