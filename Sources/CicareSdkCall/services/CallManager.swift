@@ -31,6 +31,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     private var calls: [UUID: CallInfo] = [:]
     private var currentCall: UUID?
+    private var isInCall: Bool = false
     
     private override init() {
         super.init()
@@ -106,8 +107,10 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     func callObserver(_ callObserver: CXCallObserver, callChanged call: CXCall) {
         isOutgoing = call.isOutgoing
         if call.hasEnded {
+            isInCall = false
             //delegate?.callDidEnd()
-        } else if call.isOutgoing && !call.hasConnected && !call.hasEnded {
+        } else if !call.hasEnded {
+            isInCall = true
             //delegate?.callInprogress()
         } else if call.hasConnected {
             //delegate?.callDidConnected()
@@ -135,7 +138,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                         callAvatar: calleeAvatar ?? "",
                         callType: .OUTGOING,
                         callStatus: .connecting,
-                        signaling: SocketSignaling(callService: self, uuid: unwrappedCurrentCall)
                     )
                     let cxHandle = CXHandle(type: CXHandle.HandleType.generic, value: handle)
                     let action = CXStartCallAction.init(call: unwrappedCurrentCall, handle: cxHandle)
@@ -153,7 +155,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                 return
                             }
                             self.calls[unwrappedCurrentCall]?.callStatus = .connecting
-                            self.calls[unwrappedCurrentCall]?.signaling.setCallState(.connecting)
+                            SocketSignaling.shared.setCallState(.connecting)
                             self.postCallStatus(.connecting)
                             
                             APIService.shared.request(
@@ -166,9 +168,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                     case .success(let callSession):
                                         if let wssUrl = URL(string: callSession.server) {
                                             self.postCallStatus(.calling)
-                                            self.calls[unwrappedCurrentCall]?.signaling.connect(wssUrl: wssUrl, token: callSession.token) { status in
+                                            SocketSignaling.shared.connect(wssUrl: wssUrl, token: callSession.token, uuid: unwrappedCurrentCall) { status in
                                                 if status == .connected {
-                                                    self.calls[unwrappedCurrentCall]?.signaling.initCall()
+                                                    SocketSignaling.shared.initCall()
                                                 }
                                             }
                                             completion(.success(()))
@@ -209,55 +211,54 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
         let inUUID = UUID()
-        let incomingSocket = SocketSignaling(callService: self, uuid: inUUID)
         self.metaData = metaData
-        
+        var token = ""
+        var server = ""
         if let alertData = metaData["alert_data"] {
-            extractServerData(alertData) { result in
+            self.extractServerData(alertData) { result in
                 switch result {
                 case .success(let data):
-                    if let url = URL(string: data.server) {
-                        //DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        incomingSocket.connect(wssUrl: url, token: data.token) {connected in
-                            
-                        }
-                        //}
-                    }
+                    token = data.token
+                    server = data.server
+                    
                 case .failure(let error):
-                    completion(.failure(error))
+                    print(error)
                 }
             }
         }
-        self.postCallStatus(.incoming)
-        incomingSocket.setCallState(.incoming)
-        
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(type: .generic, value: callerName)
         update.localizedCallerName = callerName
         update.hasVideo = false
-        
-        provider?.reportNewIncomingCall(with: inUUID, update: update) { error in
-            if (self.currentCall != nil) {
-                incomingSocket.setCallState(.busy)
-                self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .unanswered)
-            }
-            if let error = error {
-                completion(.failure(error))
-            } else {
-                self.calls[inUUID] = CallInfo(
-                    callId: callerId,
-                    hasVideo: false,
-                    callName: callerName,
-                    callAvatar: avatarUrl,
-                    callType: .INCOMING,
-                    callStatus: .incoming,
-                    signaling: incomingSocket
-                )
-                /*if (!self.screenIsShown && self.currentCall == nil) {
-                    self.showCallScreen(uuid: inUUID, callStatus: "incoming")
-                }*/
-                incomingSocket.emit("RINGING_CALL", [:])
-                completion(.success(()))
+        if (self.currentCall != nil && isInCall) {
+            SocketSignaling.shared.sendBusyCall(token: token)
+            self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .unanswered)
+        } else {
+            provider?.reportNewIncomingCall(with: inUUID, update: update) { error in
+                if let error = error {
+                    completion(.failure(error))
+                } else {
+                    if let wssUrl = URL(string: server) {
+                        SocketSignaling.shared.connect(wssUrl: wssUrl, token: token, uuid: inUUID) {_ in 
+                            
+                        }
+                        self.currentCall = inUUID
+                        self.postCallStatus(.incoming)
+                        self.calls[inUUID] = CallInfo(
+                            callId: callerId,
+                            hasVideo: false,
+                            callName: callerName,
+                            callAvatar: avatarUrl,
+                            callType: .INCOMING,
+                            callStatus: .incoming
+                        )
+                        SocketSignaling.shared.emit("RINGING_CALL", [:])
+                        completion(.success(()))
+                    } else {
+                        self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .failed)
+                        completion(.failure("" as! Error))
+                    }
+                }
             }
         }
     }
@@ -340,7 +341,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
         requestTransaction(transaction: transaction) { success in
-            self.calls[uuid]?.signaling.rejectCall()
+            SocketSignaling.shared.rejectCall()
             self.postCallStatus(.ended)
             self.calls.removeValue(forKey: uuid)
         }
@@ -351,11 +352,12 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
         requestTransaction(transaction: transaction) { success in
-            self.calls[uuid]?.signaling.setCallState(.cancel)
+            print("canceling")
+            SocketSignaling.shared.setCallState(.cancel)
             self.delegate?.onCallStateChanged(.cancel)
             self.postCallStatus(.ended)
             if (self.currentCall == uuid) {
-                self.calls[uuid]?.signaling.releaseWebrtc()
+                SocketSignaling.shared.releaseWebrtc()
                 self.dismissCallScreen()
                 self.currentCall = nil
             }
@@ -369,9 +371,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             let transaction = CXTransaction.init()
             transaction.addAction(endCallAction)
             requestTransaction(transaction: transaction) { success in
-                self.calls[uuid]?.signaling.setCallState(.ended)
+                SocketSignaling.shared.setCallState(.ended)
                 self.postCallStatus(.ended)
-                self.calls[uuid]?.signaling.releaseWebrtc()
+                SocketSignaling.shared.releaseWebrtc()
                 self.calls.removeValue(forKey: uuid)
                 self.currentCall = nil
             }
@@ -383,10 +385,10 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
         requestTransaction(transaction: transaction) { success in
-            self.calls[uuid]?.signaling.setCallState(.ended)
+            SocketSignaling.shared.setCallState(.ended)
             self.postCallStatus(.ended)
             if (self.currentCall == uuid) {
-                self.calls[uuid]?.signaling.releaseWebrtc()
+                SocketSignaling.shared.releaseWebrtc()
                 self.dismissCallScreen()
                 self.currentCall = nil
             }
@@ -402,7 +404,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         requestTransaction(transaction: transaction) { success in
             self.postCallStatus(callState)
             if (self.currentCall == uuid) {
-                self.calls[uuid]?.signaling.releaseWebrtc()
+                SocketSignaling.shared.releaseWebrtc()
                 self.dismissCallScreen()
                 self.currentCall = nil
             }
@@ -428,16 +430,16 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         self.postCallStatus(.connecting)
         self.calls[action.callUUID]?.callStatus = .connecting
         
-        for (uuid, call) in self.calls {
+        for (uuid, _) in self.calls {
             if (uuid != action.callUUID) {
                 self.endCall(uuid: uuid)
             } else {
-                self.currentCall = action.callUUID
-                call.signaling.answerCall() {
+                //self.currentCall = action.callUUID
+                SocketSignaling.shared.answerCall() {
                     self.calls[action.callUUID]?.callStatus = .connected
                     self.postCallStatus(.connected)
                     self.configureAudioSession()
-                    call.signaling.initOffer()
+                    SocketSignaling.shared.initOffer()
                 }
             }
         }
@@ -457,7 +459,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
-        calls[action.callUUID]?.signaling.muteCall(action.isMuted)
+        SocketSignaling.shared.muteCall(action.isMuted)
         action.fulfill()
     }
     
@@ -474,15 +476,15 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     /// Called when the provider's audio session activation state changes.
     func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         print("🔊 Audio session activated")
-        if let currentCall = currentCall {
-            calls[currentCall]?.signaling.initOffer()
+        if let _ = currentCall {
+            SocketSignaling.shared.initOffer()
         }
     }
     
     func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
         print("🔇 Audio session deactivated")
-        if let currentCall = currentCall {
-            calls[currentCall]?.signaling.releaseWebrtc()
+        if let _ = currentCall {
+            SocketSignaling.shared.releaseWebrtc()
         }
     }
     
@@ -591,7 +593,7 @@ struct CallInfo {
     var callAvatar: String
     var callType: CallType
     var callStatus: CallStatus?
-    var signaling: SocketSignaling
+    var alertData: String?
 }
 
 struct CallSessionRequest: Codable {

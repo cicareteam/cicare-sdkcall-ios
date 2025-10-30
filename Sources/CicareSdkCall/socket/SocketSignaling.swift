@@ -19,7 +19,9 @@ enum SocketIOClientStatus: String {
     case disconnected
 }
 
-class SocketSignaling {
+class SocketSignaling: NSObject {
+    
+    static let shared = SocketSignaling()
     
     private var webrtcManager: WebRTCManager?
     private var manager: SocketManager?
@@ -31,7 +33,6 @@ class SocketSignaling {
     private var callState: CallStatus?
     
     private var uuid: UUID?
-    private var callService: CallServiceDelegate?
     
     private var isConnected = false
     private var pendingActions: [() -> Void] = []
@@ -39,10 +40,8 @@ class SocketSignaling {
     private var isCallConnected = false
     
 
-    init(callService: CallServiceDelegate, uuid: UUID) {
-        self.callService = callService
-        self.uuid = uuid
-        isCallConnected = false
+    override init() {
+        super.init()
     }
     
     func convertToWebSocket(url: URL) -> URL? {
@@ -61,7 +60,9 @@ class SocketSignaling {
         return components.url
     }
     
-    func connect(wssUrl: URL, token: String, completion: @escaping (SocketIOClientStatus) -> Void) {
+    func connect(wssUrl: URL, token: String, uuid: UUID, completion: @escaping (SocketIOClientStatus) -> Void) {
+        self.uuid = uuid
+        isCallConnected = false
         webrtcManager = WebRTCManager()
         self.webrtcManager?.callback = self
         manager = SocketManager(socketURL: wssUrl,
@@ -131,9 +132,9 @@ class SocketSignaling {
         socket?.on("ACCEPTED") { _, _ in
             //self.onCallStateChanged(.accepted)
             //self.socket?.emit("CONNECTED")
-            self.callService?.callAccepted()
+            CallManager.sharedInstance.callAccepted()
             if (!self.isCallConnected) {
-                self.callService?.callConnected()
+                CallManager.sharedInstance.callConnected()
                 self.isCallConnected = true
             }
         }
@@ -141,32 +142,32 @@ class SocketSignaling {
             //self.onCallStateChanged(.connected)
             //self.socket?.emit("CONNECTED")
             if (!self.isCallConnected) {
-                self.callService?.callConnected()
+                CallManager.sharedInstance.callConnected()
                 self.isCallConnected = true
             }
         }
         socket?.on("RINGING") { _, _ in
-            self.callService?.callRinging()
+            CallManager.sharedInstance.callRinging()
         }
         socket?.on("HANGUP") { _, _ in
+            print("receive hangup")
             if (self.callState != .ended && self.callState != .refused  && self.callState != .busy) {
-                self.callService?.endedCall(uuid: self.uuid!, callState: .ended)
+                CallManager.sharedInstance.endedCall(uuid: self.uuid!, callState: .ended)
             }
-            self.callService = nil
             self.send(event: "CLEARING_SESSION", data: [:])
             self.close()
         }
         socket?.on("NO_ANSWER") { _, _ in
-            self.callService?.endedCall(uuid: self.uuid!, callState: .timeout)
+            CallManager.sharedInstance.endedCall(uuid: self.uuid!, callState: .timeout)
             self.send(event: "CLEARING_SESSION", data: [:])
             self.callState = nil
             //self.disconnect()
         }
         socket?.on("REJECTED") { _, _ in
-            self.callService?.callRejected()
+            CallManager.sharedInstance.callRejected()
         }
         socket?.on("BUSY") { _, _ in
-            self.callService?.callBusy()
+            CallManager.sharedInstance.callBusy()
         }
         socket?.on("SDP_OFFER") { data, _ in
             guard let dict = data.first as? [String: Any],
@@ -239,6 +240,7 @@ class SocketSignaling {
             }
         case .cancel:
             socket?.emitWithAck("CANCEL", ["reason": "ended"]).timingOut(after: 3) { data in
+                print("cancel sent")
                 completion?()
             }
         case .ended:
@@ -253,6 +255,11 @@ class SocketSignaling {
     func rejectCall() {
         callState = .ended
         emit("REJECT", [:])
+    }
+    
+    func sendBusyCall(token: String) {
+        print("busy call \(token)")
+        emit("BUSY_CALL", ["token":token])
     }
     
     func answerCall(completion: (() -> Void)? = nil) {
@@ -320,7 +327,7 @@ class SocketSignaling {
     func close() {
         guard isConnected else { return }
         isConnected = false
-        self.callService?.endCall(uuid: self.uuid!)
+        CallManager.sharedInstance.endCall(uuid: self.uuid!)
         socket?.disconnect()
         socket?.removeAllHandlers()
         timer?.invalidate()
