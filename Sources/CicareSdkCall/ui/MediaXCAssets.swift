@@ -24,7 +24,7 @@ public typealias AssetImageTypeAlias = ImageAsset.Image
 public enum AsssetKitImageProvider {
   public enum Resources {
     public static let avatarDefault = ImageAsset(name: "avatar_default")
-    public static let errorIcon = ImageAsset(name: "error_icon")
+    public static let errorIcon = ImageAsset(name: "error_icons")
   }
 }
 // swiftlint:enable identifier_name line_length nesting type_body_length type_name
@@ -51,10 +51,21 @@ public struct ImageAsset {
     #elseif os(watchOS)
     let image = Image(named: name)
     #endif
-    guard let result = image else {
-      fatalError("Unable to load image asset named \(name).")
+    if let result = image {
+      return result
+    } else {
+      // ✅ Aman: Tidak fatalError, hanya log warning
+      #if DEBUG
+      print("⚠️ Warning: Unable to load image asset named \(name)")
+      #endif
+
+      // Kembalikan image kosong agar UI tetap jalan
+      #if os(iOS) || os(tvOS) || os(watchOS)
+      return Image()
+      #elseif os(macOS)
+      return NSImage()
+      #endif
     }
-    return result
   }
 
   #if os(iOS) || os(tvOS)
