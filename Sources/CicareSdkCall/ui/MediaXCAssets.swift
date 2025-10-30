@@ -24,7 +24,7 @@ public typealias AssetImageTypeAlias = ImageAsset.Image
 public enum AsssetKitImageProvider {
   public enum Resources {
     public static let avatarDefault = ImageAsset(name: "avatar_default")
-    public static let errorIcon = ImageAsset(name: "error_icons")
+    public static let errorIcon = ImageAsset(name: "error_icon")
   }
 }
 // swiftlint:enable identifier_name line_length nesting type_body_length type_name
