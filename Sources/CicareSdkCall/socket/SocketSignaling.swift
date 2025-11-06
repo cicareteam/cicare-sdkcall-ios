@@ -241,7 +241,6 @@ class SocketSignaling: NSObject {
             }
         case .cancel:
             socket?.emitWithAck("CANCEL", ["reason": "ended"]).timingOut(after: 3) { data in
-                print("cancel sent")
                 completion?()
             }
         case .ended:
