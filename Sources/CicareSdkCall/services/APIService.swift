@@ -79,7 +79,7 @@ final class APIService: NSObject {
         headers?.forEach { request.setValue($0.value, forHTTPHeaderField: $0.key) }
 
         session.dataTask(with: request) { data, response, error in
-            if let error = error {
+            if let error = error as? URLError {
                 completion(.failure(.requestFailed(error)))
                 return
             }

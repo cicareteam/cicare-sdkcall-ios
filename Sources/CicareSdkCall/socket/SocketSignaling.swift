@@ -126,6 +126,8 @@ class SocketSignaling: NSObject {
         }
         socket?.on("MISSED_CALL") {_, _ in
             //self.onCallStateChanged(.missed)
+            CallManager.sharedInstance.missedCall()
+            self.close()
         }
         socket?.on("RINGING_OK") {_, _ in
         }
@@ -134,15 +136,15 @@ class SocketSignaling: NSObject {
             //self.socket?.emit("CONNECTED")
             CallManager.sharedInstance.callAccepted()
             if (!self.isCallConnected) {
-                CallManager.sharedInstance.callConnected()
+                //CallManager.sharedInstance.callConnected()
                 self.isCallConnected = true
             }
         }
         socket?.on("CONNECTED") { _, _ in
             //self.onCallStateChanged(.connected)
             //self.socket?.emit("CONNECTED")
+            CallManager.sharedInstance.callConnected()
             if (!self.isCallConnected) {
-                CallManager.sharedInstance.callConnected()
                 self.isCallConnected = true
             }
         }
@@ -150,7 +152,6 @@ class SocketSignaling: NSObject {
             CallManager.sharedInstance.callRinging()
         }
         socket?.on("HANGUP") { _, _ in
-            print("receive hangup")
             if (self.callState != .ended && self.callState != .refused  && self.callState != .busy) {
                 CallManager.sharedInstance.endedCall(uuid: self.uuid!, callState: .ended)
             }
@@ -258,7 +259,6 @@ class SocketSignaling: NSObject {
     }
     
     func sendBusyCall(token: String) {
-        print("busy call \(token)")
         emit("BUSY_CALL", ["token":token])
     }
     
