@@ -11,6 +11,7 @@ import AVFoundation
 import CallKit
 import UIKit
 import SwiftUI
+import CommonCrypto
 
 final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, CXProviderDelegate {
     
@@ -63,24 +64,33 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         })
     }
     
-    private func extractServerData (_ alertData: String, completion: @escaping (Result<(server: String, token: String, isFromPhone: Bool), Error>) -> Void) {
-        var base64String = alertData
-        if let range = base64String.range(of: "base64,") {
-            base64String = String(base64String[range.upperBound...])
+    private func extractServerData(
+        callerId: String,
+        alertData: String,
+        completion: @escaping (Result<(server: String, token: String, isFromPhone: Bool), Error>) -> Void
+    ) {
+        guard let decryptedString = decrypt(cipher: alertData, encryptionKey: "0123456789abcdef0123456789abcdef"),
+              let data = decryptedString.data(using: .utf8) else {
+            completion(.failure(NSError(domain: "DecryptError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to decrypt data"])))
+            return
         }
-        base64String = base64String.trimmingCharacters(in: .whitespacesAndNewlines)
-        let remainder = base64String.count % 4
-        if remainder > 0 {
-            base64String += String(repeating: "=", count: 4 - remainder)
-        }
-        if let decodedData = Data(base64Encoded: base64String, options: .ignoreUnknownCharacters) {
-            do {
-                if let jsonObject = try JSONSerialization.jsonObject(with: decodedData, options: []) as? [String: Any] {
-                    completion(.success((jsonObject["server"] as! String, jsonObject["token"] as! String, (jsonObject["isFromPhone"] != nil))))
+
+        do {
+            if let jsonObject = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                guard
+                    let server = jsonObject["server"] as? String,
+                    let token = jsonObject["token"] as? String
+                else {
+                    throw NSError(domain: "JSONError", code: -2, userInfo: [NSLocalizedDescriptionKey: "Missing required fields"])
                 }
-            } catch {
-                completion(.failure(error))
+
+                let isFromPhone = (jsonObject["isFromPhone"] as? Bool) ?? false
+                completion(.success((server: server, token: token, isFromPhone: isFromPhone)))
+            } else {
+                throw NSError(domain: "JSONError", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON format"])
             }
+        } catch {
+            completion(.failure(error))
         }
     }
     
@@ -188,7 +198,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                             completion(.failure(CallError.internalServerError(code: data.code ?? 400, message: data.message)))
                                             self.postNetworkStatus(data.message)
                                         default:
-                                            completion(.failure(CallError.internalServerError(code: 500, message: "Internal server error")))
+                                            completion(.failure(CallError.internalServerError(code: 500, message: error.localizedDescription)))
                                             self.postNetworkStatus("call_failed_api")
                                         }
                                     }
@@ -215,7 +225,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         var token = ""
         var server = ""
         if let alertData = metaData["alert_data"] {
-            self.extractServerData(alertData) { result in
+            self.extractServerData(callerId: callerId, alertData: alertData) { result in
                 switch result {
                 case .success(let data):
                     token = data.token
@@ -271,6 +281,22 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 if (success) {
                     
                 }
+            }
+        }
+    }
+    
+    func missedCall() {
+        for (uuid, _) in calls {
+            let endCallAction = CXEndCallAction.init(call:uuid)
+            let transaction = CXTransaction.init()
+            transaction.addAction(endCallAction)
+            requestTransaction(transaction: transaction) { success in
+                SocketSignaling.shared.setCallState(.missed)
+                self.postCallStatus(.ended)
+                SocketSignaling.shared.releaseWebrtc()
+                self.dismissCallScreen()
+                self.currentCall = nil
+                self.calls.removeValue(forKey: uuid)
             }
         }
     }
@@ -437,7 +463,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 //self.currentCall = action.callUUID
                 SocketSignaling.shared.answerCall() {
                     self.calls[action.callUUID]?.callStatus = .connected
-                    self.postCallStatus(.connected)
                     self.configureAudioSession()
                     SocketSignaling.shared.initOffer()
                 }
@@ -621,4 +646,80 @@ protocol CallServiceDelegate: AnyObject {
     func callRinging()
     func callRejected()
     func callBusy()
+}
+
+func decrypt(cipher: String, encryptionKey: String) -> String? {
+    // Pisahkan iv dan ciphertext berdasarkan tanda ":"
+    let components = cipher.split(separator: ":")
+    guard components.count == 2 else { return nil }
+    
+    let ivHex = String(components[0])
+    let encryptedHex = String(components[1])
+    
+    // Konversi hex ke Data
+    guard let iv = Data(hex: ivHex),
+          let encryptedData = Data(hex: encryptedHex),
+          let keyData = encryptionKey.data(using: .utf8) else {
+        return nil
+    }
+    
+    let keyLength = kCCKeySizeAES256
+    guard keyData.count == keyLength else {
+        return nil
+    }
+    
+    // Siapkan buffer sementara untuk hasil dekripsi
+    let bufferSize = encryptedData.count + kCCBlockSizeAES128
+    var buffer = Data(count: bufferSize)
+    var numBytesDecrypted: size_t = 0
+    
+    let cryptStatus = buffer.withUnsafeMutableBytes { bufferBytes in
+        encryptedData.withUnsafeBytes { encryptedBytes in
+            iv.withUnsafeBytes { ivBytes in
+                keyData.withUnsafeBytes { keyBytes in
+                    CCCrypt(
+                        CCOperation(kCCDecrypt),
+                        CCAlgorithm(kCCAlgorithmAES128),
+                        CCOptions(kCCOptionPKCS7Padding),
+                        keyBytes.baseAddress,
+                        keyLength,
+                        ivBytes.baseAddress,
+                        encryptedBytes.baseAddress,
+                        encryptedData.count,
+                        bufferBytes.baseAddress,
+                        bufferSize,
+                        &numBytesDecrypted
+                    )
+                }
+            }
+        }
+    }
+    
+    if cryptStatus == kCCSuccess {
+        let decryptedData = buffer.prefix(numBytesDecrypted)
+        return String(data: decryptedData, encoding: .utf8)
+    } else {
+        print("❌ Dekripsi gagal dengan status \(cryptStatus)")
+        return nil
+    }
+}
+
+extension Data {
+    init?(hex: String) {
+        let len = hex.count / 2
+        var data = Data(capacity: len)
+        var index = hex.startIndex
+        for _ in 0..<len {
+            let nextIndex = hex.index(index, offsetBy: 2)
+            if nextIndex > hex.endIndex { return nil }
+            let bytes = hex[index..<nextIndex]
+            if var num = UInt8(bytes, radix: 16) {
+                data.append(&num, count: 1)
+            } else {
+                return nil
+            }
+            index = nextIndex
+        }
+        self = data
+    }
 }
