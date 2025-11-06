@@ -147,7 +147,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                         callName: calleeName,
                         callAvatar: calleeAvatar ?? "",
                         callType: .OUTGOING,
-                        callStatus: .connecting,
+                        callStatus: .connecting
                     )
                     let cxHandle = CXHandle(type: CXHandle.HandleType.generic, value: handle)
                     let action = CXStartCallAction.init(call: unwrappedCurrentCall, handle: cxHandle)
@@ -378,7 +378,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
         requestTransaction(transaction: transaction) { success in
-            print("canceling")
             SocketSignaling.shared.setCallState(.cancel)
             self.delegate?.onCallStateChanged(.cancel)
             self.postCallStatus(.ended)
