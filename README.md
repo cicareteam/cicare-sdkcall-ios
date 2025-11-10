@@ -13,7 +13,7 @@ source 'https://github.com/CocoaPods/Specs.git'
 
 target 'YourAppTarget' do
   use_frameworks!
-  pod 'CiCareSDKCallIOS', '1.2.1-rc.27'
+  pod 'CiCareSDKCallIOS', '1.2.1-rc.28'
 end
 ````
 
@@ -177,6 +177,7 @@ State list are:
 * ringing: Outgoing call is ringing on the callee
 * accepted: Outgoing call is accepted by the callee
 * connected: The call is connected in callee or in caller
+* reconnecting: The call is trying to reconnect
 * end: The call is end normally
 * refused: The call is end cause refused by the callee
 * busy: The call is end cause the callee busy
@@ -198,6 +199,7 @@ CicareSdkCall.shared.outgoing(...) { result in
 ```
 Error code list are:
 * 101: Mic permission denied
+* 102: Already in call
 * 401: Api unauthorized
 * 400: Some field is required
 * 505: Server not found
@@ -208,7 +210,7 @@ Error code list are:
 ## 🔗 References
 
 * CocoaPods: [https://cocoapods.org/pods/CiCareSDKCallIOS](https://cocoapods.org/pods/CiCareSDKCallIOS)
-* Latest version: **1.2.1-rc.27**
+* Latest version: **1.2.1-rc.28**
 * Apple Docs:
 
   * [Push Notifications](https://developer.apple.com/documentation/usernotifications)

@@ -38,6 +38,7 @@ class SocketSignaling: NSObject {
     private var pendingActions: [() -> Void] = []
     
     private var isCallConnected = false
+    private var isReconnecting = false
     
 
     override init() {
@@ -68,9 +69,15 @@ class SocketSignaling: NSObject {
         manager = SocketManager(socketURL: wssUrl,
                                     config: [.log(false),
                                              .compress,
+                                             .reconnectWait(1),
+                                             .reconnectWaitMax(3),
+                                             .reconnectAttempts(3),
+                                             .forceNew(true),
+                                             .forceWebsockets(true),
                                              .reconnects(true),
                                              .connectParams(["token": token])])
         socket = manager?.socket(forNamespace: "/")
+        print("socket connected")
         
         connectStartTime = Date()
         
@@ -86,9 +93,17 @@ class SocketSignaling: NSObject {
                 let elapsed = Date().timeIntervalSince(start)
                 if elapsed > 1.5 {
                     NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
+                } else {
+                    NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
                 }
             }
             self.isConnected = true
+            if (self.isReconnecting) {
+                print("socket reconnected")
+                self.reinitWebRTC()
+                self.emit("RECONNECT", [:])
+                self.isReconnecting = false
+            }
             for action in self.pendingActions {
                 action()
             }
@@ -102,6 +117,13 @@ class SocketSignaling: NSObject {
             self.socket = nil
             completion(.disconnected)
             self.close()
+            print("socket disconnected")
+        }
+        socket?.on(clientEvent: .reconnect) { _, _ in
+            //self.initOffer()
+            print("socket reconnecting")
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
+            self.isReconnecting = true
         }
         socket?.on(clientEvent: .error) { _, _ in
             self.isConnected = false
@@ -113,6 +135,11 @@ class SocketSignaling: NSObject {
 
         registerHandlers()
         socket?.connect()
+    }
+    
+    private func reinitWebRTC() {
+        webrtcManager?.reinit()
+        initOffer()
     }
     
     private func registerHandlers() {
@@ -140,6 +167,12 @@ class SocketSignaling: NSObject {
                 self.isCallConnected = true
             }
         }
+        socket?.on("RECONNECTING") { _, _ in
+            CallManager.sharedInstance.postCallStatus(.reconnecting)
+        }
+        /*socket?.on("RECONNECTED") { _, _ in
+            CallManager.sharedInstance.postCallStatus(.connected)
+        }*/
         socket?.on("CONNECTED") { _, _ in
             //self.onCallStateChanged(.connected)
             //self.socket?.emit("CONNECTED")
@@ -184,6 +217,7 @@ class SocketSignaling: NSObject {
             
         }
         socket?.on("SDP_ANSWER") { data, _ in
+            print("SDP answer")
             guard let dict = data.first as? [String: Any],
                   let sdpStr = dict["sdp"] as? String else { return }
             let sdp = RTCSessionDescription(type: .answer, sdp: sdpStr)
@@ -298,11 +332,14 @@ class SocketSignaling: NSObject {
                         "is_caller": false,
                         "sdp": sdpPayload
                     ]
+                    print("SDP Offer")
                     self.send(event: "SDP_OFFER", data: payload)
                 case .failure(let error):
                     print("Failed to create offer:", error.localizedDescription)
                 }
             }
+        } else {
+            print("webrtc not initialized")
         }
     }
     
@@ -354,17 +391,22 @@ extension SocketSignaling: WebRTCEventCallback {
         // optional: map state to callEventListener if needed
     }
     func onIceConnectionStateChanged(state: RTCIceConnectionState) {
+        
         switch state {
         case .disconnected:
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "disconnected"])
-            break
-        case .failed:
+            print("ice state disconnected")
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
             break
+        case .failed:
+            print("ice state failed")
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
+            break
         case .closed:
+            print("ice state closed")
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "lost"])
             break
         case .connected, .completed:
+            print("ice state connected")
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
             break
         default:
