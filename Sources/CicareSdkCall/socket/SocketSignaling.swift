@@ -99,9 +99,9 @@ class SocketSignaling: NSObject {
             }
             self.isConnected = true
             if (self.isReconnecting) {
-                //print("reconnected")
-                self.emit("RECONNECT", [:])
+                print("socket reconnected")
                 self.reinitWebRTC()
+                self.emit("RECONNECT", [:])
                 self.isReconnecting = false
             }
             for action in self.pendingActions {
@@ -112,16 +112,16 @@ class SocketSignaling: NSObject {
             completion(.connected)
         }
         socket?.on(clientEvent: .disconnect) { _, _ in
-            /*self.isConnected = false
+            self.isConnected = false
             self.manager = nil
             self.socket = nil
             completion(.disconnected)
-            self.close()*/
-            //print("socket disconnected")
+            self.close()
+            print("socket disconnected")
         }
         socket?.on(clientEvent: .reconnect) { _, _ in
             //self.initOffer()
-            //print("reconnecting")
+            print("socket reconnecting")
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
             self.isReconnecting = true
         }
@@ -170,9 +170,9 @@ class SocketSignaling: NSObject {
         socket?.on("RECONNECTING") { _, _ in
             CallManager.sharedInstance.postCallStatus(.reconnecting)
         }
-        socket?.on("RECONNECTED") { _, _ in
+        /*socket?.on("RECONNECTED") { _, _ in
             CallManager.sharedInstance.postCallStatus(.connected)
-        }
+        }*/
         socket?.on("CONNECTED") { _, _ in
             //self.onCallStateChanged(.connected)
             //self.socket?.emit("CONNECTED")

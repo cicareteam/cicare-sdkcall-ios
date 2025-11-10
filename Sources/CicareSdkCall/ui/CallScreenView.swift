@@ -132,6 +132,9 @@ public class CallScreenViewController: UIViewController {
                 case "lost":
                     self.connectionLabel.text = "\(self.metaData["call_lost_connection"] ?? "Lost connection")..."
                     self.connectionLabel.textColor = .systemRed
+                case "reconnecting":
+                    self.connectionLabel.text = "\(self.metaData["call_reconnecting"] ?? "Reconnecting")..."
+                    self.connectionLabel.textColor = .systemRed
                 default:
                     self.connectionLabel.text = ""
                 }
