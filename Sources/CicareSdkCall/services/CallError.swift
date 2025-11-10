@@ -8,6 +8,7 @@ import Foundation
 
 public enum ErrorCode: Int, CustomStringConvertible {
     case microphonePermissionDenied = 101
+    case alreadyIncall = 102
     case apiUnauthorized = 401
     case internalServerError = 400
     
@@ -15,6 +16,8 @@ public enum ErrorCode: Int, CustomStringConvertible {
         switch self {
         case .microphonePermissionDenied:
             return "Microphone permission denied."
+        case .alreadyIncall:
+            return "Already in call."
         case .apiUnauthorized:
             return "API Unauthorized."
         case .internalServerError:
@@ -25,6 +28,7 @@ public enum ErrorCode: Int, CustomStringConvertible {
 
 public enum CallError: LocalizedError {
     case microphonePermissionDenied
+    case alreadyIncall
     case apiUnauthorized
     /// Internal server error with dynamic code and message from backend.
     case internalServerError(code: Int, message: String)
@@ -34,6 +38,8 @@ public enum CallError: LocalizedError {
         switch self {
         case .microphonePermissionDenied:
             return .microphonePermissionDenied
+        case .alreadyIncall:
+            return .alreadyIncall
         case .apiUnauthorized:
             return .apiUnauthorized
         case .internalServerError:
@@ -46,6 +52,8 @@ public enum CallError: LocalizedError {
         switch self {
         case .microphonePermissionDenied:
             return ErrorCode.microphonePermissionDenied.rawValue
+        case .alreadyIncall:
+            return ErrorCode.alreadyIncall.rawValue
         case .apiUnauthorized:
             return ErrorCode.apiUnauthorized.rawValue
         case .internalServerError(let code, _):
@@ -58,6 +66,8 @@ public enum CallError: LocalizedError {
         switch self {
         case .microphonePermissionDenied:
             return ErrorCode.microphonePermissionDenied.description
+        case .alreadyIncall:
+            return ErrorCode.alreadyIncall.description
         case .apiUnauthorized:
             return ErrorCode.apiUnauthorized.description
         case .internalServerError(_, let message):

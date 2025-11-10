@@ -14,6 +14,8 @@ public class CallScreenViewController: UIViewController {
     
     let monitor = NWPathMonitor()
     let queue = DispatchQueue.global(qos: .background)
+    var isNetworkReallyDown = false
+    var checkTimer: DispatchWorkItem?
     
     // MARK: - UI Elements
     private let nameLabel = UILabel()
@@ -70,8 +72,29 @@ public class CallScreenViewController: UIViewController {
         view.insertSubview(gradientBackground, at: 0)
         
         monitor.pathUpdateHandler = { path in
-            if path.status != .satisfied {
-                self.showErrorConnectionAlert(text: self.metaData["call_failed_no_connection"] ?? "No internet connection",icon: nil)
+            // Reset timer setiap ada perubahan path
+            self.checkTimer?.cancel()
+
+            if path.status == .unsatisfied {
+                // Delay 3 detik untuk memastikan benar-benar tidak ada koneksi
+                let task = DispatchWorkItem {
+                    if self.monitor.currentPath.status == .unsatisfied {
+                        DispatchQueue.main.async {
+                            if !self.isNetworkReallyDown {
+                                self.isNetworkReallyDown = true
+                                self.showErrorConnectionAlert(
+                                    text: self.metaData["call_failed_no_connection"] ?? "No internet connection",
+                                    icon: nil
+                                )
+                            }
+                        }
+                    }
+                }
+                self.checkTimer = task
+                DispatchQueue.global().asyncAfter(deadline: .now() + 3, execute: task)
+            } else {
+                // Kalau koneksi balik lagi
+                self.isNetworkReallyDown = false
             }
         }
         monitor.start(queue: queue)

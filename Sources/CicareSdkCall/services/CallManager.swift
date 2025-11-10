@@ -137,9 +137,12 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func outgoingCall(handle: String, calleeId: String, calleeName: String, calleeAvatar: String? = "", metaData: [String:String], callData: CallSessionRequest, completion: @escaping (Result<Void, CallError>) -> Void) {
+        if (self.currentCall != nil) {
+            return completion(.failure(CallError.alreadyIncall))
+        }
+        self.currentCall = UUID.init()
         requestMicrophonePermission { granted in
             if (granted) {
-                self.currentCall = UUID.init()
                 if let unwrappedCurrentCall = self.currentCall {
                     self.calls[unwrappedCurrentCall] = CallInfo (
                         callId: calleeId,
@@ -519,7 +522,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         action.fulfill()
     }
     
-    private func postCallStatus(_ status: CallStatus) {
+    func postCallStatus(_ status: CallStatus) {
         delegate?.onCallStateChanged(status)
         NotificationCenter.default.post(name: .callStatusChanged, object: nil, userInfo: ["status" : status.rawValue])
     }
