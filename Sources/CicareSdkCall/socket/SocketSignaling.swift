@@ -332,7 +332,6 @@ class SocketSignaling: NSObject {
                         "is_caller": false,
                         "sdp": sdpPayload
                     ]
-                    print("SDP Offer")
                     self.send(event: "SDP_OFFER", data: payload)
                 case .failure(let error):
                     print("Failed to create offer:", error.localizedDescription)
@@ -349,6 +348,7 @@ class SocketSignaling: NSObject {
     }
     
     func muteCall(_ mute: Bool) {
+        self.send(event: "MUTE", data: ["mute": mute])
         self.webrtcManager?.setMicEnabled(!mute);
     }
     
@@ -363,6 +363,7 @@ class SocketSignaling: NSObject {
     func close() {
         guard isConnected else { return }
         isConnected = false
+        isReconnecting = false
         CallManager.sharedInstance.endCall(uuid: self.uuid!)
         socket?.disconnect()
         socket?.removeAllHandlers()
@@ -395,7 +396,7 @@ extension SocketSignaling: WebRTCEventCallback {
         switch state {
         case .disconnected:
             print("ice state disconnected")
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
             break
         case .failed:
             print("ice state failed")
