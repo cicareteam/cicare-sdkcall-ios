@@ -348,7 +348,7 @@ class SocketSignaling: NSObject {
     }
     
     func muteCall(_ mute: Bool) {
-        self.send(event: "MUTE", data: ["mute": mute])
+        //self.send(event: "MUTE", data: ["mute": mute])
         self.webrtcManager?.setMicEnabled(!mute);
     }
     

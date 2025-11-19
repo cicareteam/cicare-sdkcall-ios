@@ -72,8 +72,8 @@ class WebRTCManager: NSObject {
     func initMic() {
         let audioSource = peerConnectionFactory.audioSource(with: RTCMediaConstraints(mandatoryConstraints: nil,
                                                                                       optionalConstraints: nil))
-        audioTrack = peerConnectionFactory.audioTrack(with: audioSource, trackId: "audio101")
         
+        audioTrack = peerConnectionFactory.audioTrack(with: audioSource, trackId: "audio101")
         let transceiverInit = RTCRtpTransceiverInit()
             transceiverInit.direction = .sendRecv
         
