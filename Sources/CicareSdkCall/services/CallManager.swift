@@ -33,6 +33,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     private var calls: [UUID: CallInfo] = [:]
     private var currentCall: UUID?
     private var isInCall: Bool = false
+    private var defaultVolume: Float = 1.0
     
     private override init() {
         super.init()
@@ -487,6 +488,11 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
         SocketSignaling.shared.muteCall(action.isMuted)
+        let session = AVAudioSession.sharedInstance()
+        defaultVolume = session.inputGain
+        if session.isInputGainSettable {
+            try? session.setInputGain(action.isMuted ? 0.0 : defaultVolume)
+        }
         action.fulfill()
     }
     
