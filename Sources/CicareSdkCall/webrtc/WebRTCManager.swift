@@ -92,8 +92,14 @@ class WebRTCManager: NSObject {
     func setAudioOutputToSpeaker(enabled: Bool) {
         let session = AVAudioSession.sharedInstance()
         do {
-            try session.setCategory(.playAndRecord, mode: .voiceChat, options: enabled ? .defaultToSpeaker : [])
-            try session.setActive(true)
+            //try session.setCategory(.playAndRecord, mode: .voiceChat, options: enabled ? .defaultToSpeaker : [])
+            
+            //try session.setActive(true)
+            if (enabled) {
+                try session.overrideOutputAudioPort(.speaker)
+            } else {
+                try session.overrideOutputAudioPort(.none)
+            }
         } catch {
             print("Audio session error: \(error)")
         }
@@ -162,7 +168,9 @@ class WebRTCManager: NSObject {
 
     func setMicEnabled(_ enabled: Bool) {
         if (audioTrack != nil) {
-            audioTrack?.isEnabled = enabled
+            peerConnection.transceivers
+                        .compactMap { return $0.sender.track as? RTCAudioTrack }
+                        .forEach { $0.isEnabled = enabled }
         } else {
             print("audio track not set yet")
         }
