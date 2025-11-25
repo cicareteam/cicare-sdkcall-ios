@@ -48,7 +48,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         callObserver.setDelegate(self, queue: nil)
         provider = CXProvider.init(configuration: configuration)
         provider?.setDelegate(self, queue: nil)
-        callObserver.setDelegate(self, queue: nil)
         
         callController = CXCallController.init()
     }
@@ -226,52 +225,48 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     ) {
         let inUUID = UUID()
         self.metaData = metaData
-        var token = ""
-        var server = ""
         if let alertData = metaData["alert_data"] {
             self.extractServerData(callerId: callerId, alertData: alertData) { result in
                 switch result {
                 case .success(let data):
-                    token = data.token
-                    server = data.server
+                    let update = CXCallUpdate()
+                    update.remoteHandle = CXHandle(type: .generic, value: callerName)
+                    update.localizedCallerName = callerName
+                    update.hasVideo = false
+                    if (self.currentCall != nil && self.isInCall) {
+                        SocketSignaling.shared.sendBusyCall(token: data.token)
+                        self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .unanswered)
+                    } else {
+                        self.provider?.reportNewIncomingCall(with: inUUID, update: update) { error in
+                            if let error = error {
+                                completion(.failure(error))
+                            } else {
+                                if let wssUrl = URL(string: data.server) {
+                                    SocketSignaling.shared.connect(wssUrl: wssUrl, token: data.token, uuid: inUUID) {_ in
+                                        
+                                    }
+                                    self.currentCall = inUUID
+                                    self.postCallStatus(.incoming)
+                                    self.calls[inUUID] = CallInfo(
+                                        callId: callerId,
+                                        hasVideo: false,
+                                        callName: callerName,
+                                        callAvatar: avatarUrl,
+                                        callType: .INCOMING,
+                                        callStatus: .incoming
+                                    )
+                                    SocketSignaling.shared.emit("RINGING_CALL", [:])
+                                    completion(.success(()))
+                                } else {
+                                    self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .failed)
+                                    completion(.failure("" as! Error))
+                                }
+                            }
+                        }
+                    }
                     
                 case .failure(let error):
                     print(error)
-                }
-            }
-        }
-        let update = CXCallUpdate()
-        update.remoteHandle = CXHandle(type: .generic, value: callerName)
-        update.localizedCallerName = callerName
-        update.hasVideo = false
-        if (self.currentCall != nil && isInCall) {
-            SocketSignaling.shared.sendBusyCall(token: token)
-            self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .unanswered)
-        } else {
-            provider?.reportNewIncomingCall(with: inUUID, update: update) { error in
-                if let error = error {
-                    completion(.failure(error))
-                } else {
-                    if let wssUrl = URL(string: server) {
-                        SocketSignaling.shared.connect(wssUrl: wssUrl, token: token, uuid: inUUID) {_ in 
-                            
-                        }
-                        self.currentCall = inUUID
-                        self.postCallStatus(.incoming)
-                        self.calls[inUUID] = CallInfo(
-                            callId: callerId,
-                            hasVideo: false,
-                            callName: callerName,
-                            callAvatar: avatarUrl,
-                            callType: .INCOMING,
-                            callStatus: .incoming
-                        )
-                        SocketSignaling.shared.emit("RINGING_CALL", [:])
-                        completion(.success(()))
-                    } else {
-                        self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .failed)
-                        completion(.failure("" as! Error))
-                    }
                 }
             }
         }
@@ -303,6 +298,10 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.calls.removeValue(forKey: uuid)
             }
         }
+    }
+    
+    func cleanUpAndEnd(uuid: UUID, state: CallStatus) {
+        
     }
     
     func endActiveCall() {
@@ -443,7 +442,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func provider(_ provider: CXProvider, perform action: CXStartCallAction) {
-        configureAudioSession()
+        //configureAudioSession()
         provider.reportOutgoingCall(with: action.callUUID, startedConnectingAt: nil)
         provider.reportOutgoingCall(with: action.callUUID, connectedAt: nil)
         action.fulfill()
@@ -466,7 +465,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 //self.currentCall = action.callUUID
                 SocketSignaling.shared.answerCall() {
                     self.calls[action.callUUID]?.callStatus = .connected
-                    self.configureAudioSession()
                     SocketSignaling.shared.initOffer()
                 }
             }
@@ -490,9 +488,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         SocketSignaling.shared.muteCall(action.isMuted)
         let session = AVAudioSession.sharedInstance()
         defaultVolume = session.inputGain
-        if session.isInputGainSettable {
+        /*if session.isInputGainSettable {
             try? session.setInputGain(action.isMuted ? 0.0 : defaultVolume)
-        }
+        }*/
         action.fulfill()
     }
     
@@ -509,8 +507,11 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     /// Called when the provider's audio session activation state changes.
     func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         print("🔊 Audio session activated")
+        self.configureAudioSession()
         if let _ = currentCall {
-            SocketSignaling.shared.initOffer()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                SocketSignaling.shared.initOffer()
+            }
         }
     }
     
@@ -542,7 +543,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         do {
             if audioSession.category != .playAndRecord {
                 try audioSession.setCategory(AVAudioSession.Category.playAndRecord,
-                                             options: AVAudioSession.CategoryOptions.allowBluetooth)
+                                             options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker])
             }
             if audioSession.mode != .voiceChat {
                 try audioSession.setMode(.voiceChat)
@@ -606,6 +607,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     func dismissCallScreen() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.callWindow?.isHidden = true
+            if #available(iOS 13.0, *) {
+                self.callWindow?.windowScene = nil
+            }
             self.callWindow = nil
             self.callVC = nil
             self.screenIsShown = false
