@@ -487,7 +487,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
-        SocketSignaling.shared.muteCall(action.isMuted)
+        let success = SocketSignaling.shared.muteCall(action.isMuted)
         let session = AVAudioSession.sharedInstance()
         defaultVolume = session.inputGain
         /*if session.isInputGainSettable {
