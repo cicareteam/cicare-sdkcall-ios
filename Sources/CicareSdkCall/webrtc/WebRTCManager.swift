@@ -166,13 +166,16 @@ class WebRTCManager: NSObject {
         return peerConnection.signalingState != .closed
     }
 
-    func setMicEnabled(_ enabled: Bool) {
+    func setMicEnabled(_ enabled: Bool) -> Bool {
         if (audioTrack != nil) {
             peerConnection.transceivers
                         .compactMap { return $0.sender.track as? RTCAudioTrack }
                         .forEach { $0.isEnabled = enabled }
+            print("audio \(enabled ? "enabled" : "disabled")")
+            return true
         } else {
             print("audio track not set yet")
+            return false
         }
         //RTCAudioSession.sharedInstance().isAudioEnabled = enabled
     }

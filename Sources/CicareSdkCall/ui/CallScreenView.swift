@@ -462,11 +462,13 @@ public class CallScreenViewController: UIViewController {
             iconColor: UIColor(hex: "17666A")!,
             backgroundColor: UIColor(hex: "E9F8F9")!
         ) {
-            self.isMuted.toggle()
+            if (SocketSignaling.shared.muteCall(!self.isMuted)) {
+                print("view mute success")
+                self.isMuted.toggle()
+            }
             self.muteButton.icon = self.isMuted ? self.compatibleImage(named: "mic.slash", systemName: "mic.slash.fill") : self.compatibleImage(named: "mic.slash", systemName: "mic.slash")
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
-            CallManager.sharedInstance.muteCall(isMuted: self.isMuted)
             
         }
         muteButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
@@ -562,11 +564,13 @@ public class CallScreenViewController: UIViewController {
             iconColor: UIColor(hex: "17666A")!,
             backgroundColor: UIColor(hex: "E9F8F9")!
         ) {
-            self.isMuted.toggle()
+            if (SocketSignaling.shared.muteCall(!self.isMuted)) {
+                print("view mute success")
+                self.isMuted.toggle()
+            }
             self.muteButton.icon = self.isMuted ? self.compatibleImage(named: "mic.slash", systemName: "mic.slash.fill") : self.compatibleImage(named: "mic.slash", systemName: "mic.slash")
             self.muteButton.button.tintColor = self.isMuted ? .white : UIColor(hex: "17666A")!
             self.muteButton.button.backgroundColor = self.isMuted ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
-            CallManager.sharedInstance.muteCall(isMuted: self.isMuted)
         }
         muteButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
         muteButton.isEnabled = false
