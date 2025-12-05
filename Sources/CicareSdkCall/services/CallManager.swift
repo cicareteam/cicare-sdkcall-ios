@@ -273,7 +273,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func muteCall(isMuted: Bool) {
-        if let currentCall = currentCall {
+        SocketSignaling.shared.muteCall(isMuted)
+        /*if let currentCall = currentCall {
             let muteAction = CXSetMutedCallAction(call: currentCall, muted: isMuted)
             let transaction = CXTransaction(action: muteAction)
             requestTransaction(transaction: transaction) { success in
@@ -281,7 +282,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                     
                 }
             }
-        }
+        }*/
     }
     
     func missedCall() {
