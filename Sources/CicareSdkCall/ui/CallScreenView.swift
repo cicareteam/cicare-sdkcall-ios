@@ -206,7 +206,6 @@ public class CallScreenViewController: UIViewController {
             case .connected:
                 self.isConnected = true
                 self.statusLabel.text = self.metaData["call_connected"] ?? "Connected"
-                //NotificationManager.shared.showOngoingCallNotification(callee: self.calleeName)
                 self.muteButton.isEnabled = true
                 self.startCallDurationTimer()
                 DispatchQueue.main.async {
