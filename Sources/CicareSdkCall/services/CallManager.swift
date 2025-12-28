@@ -162,7 +162,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                             DispatchQueue.main.async {
                                 self.showCallScreen(uuid: unwrappedCurrentCall, callStatus: "connecting")
                             }
-                            NotificationManager.shared.showOutgoingCallNotification(callee: handle)
                             
                             guard let bodyData = try? JSONEncoder().encode(callData) else {
                                 return

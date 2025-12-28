@@ -6,7 +6,7 @@
 //
 
 import Foundation
-internal import SocketIO
+import SocketIO
 import WebRTC
 
 protocol SignalingDelegate: AnyObject {

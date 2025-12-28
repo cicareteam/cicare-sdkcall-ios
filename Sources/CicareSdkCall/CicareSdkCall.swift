@@ -82,7 +82,6 @@ public class CicareSdkCall: CallEventListener {
     
             
     private init() {
-        _ = NotificationManager.shared
         CallManager.sharedInstance.delegate = self
     }
     
@@ -125,7 +124,6 @@ public class CicareSdkCall: CallEventListener {
         metaData: [String: String],
         onMessageClicked: (() -> Void)? = nil
     ) {
-        _ = NotificationManager.shared
         self.metaData["call_name_title"] = callerName
         
         let callerName = callerName == "" ? "Green SM Driver" : callerName
