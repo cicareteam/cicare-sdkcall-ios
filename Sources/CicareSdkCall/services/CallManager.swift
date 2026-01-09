@@ -68,30 +68,49 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         alertData: String,
         completion: @escaping (Result<(server: String, token: String, isFromPhone: Bool), Error>) -> Void
     ) {
-        //"0123456789abcdef0123456789abcdef"
-        guard let decryptedString = decrypt(cipher: alertData, encryptionKey: CryptoKeyManager.shared.getKey()),
-              let data = decryptedString.data(using: .utf8) else {
-            completion(.failure(NSError(domain: "DecryptError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to decrypt data"])))
-            return
-        }
-
-        do {
-            if let jsonObject = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+        
+        CryptoKeyManager.shared.getKey { result in
+            switch result {
+            case .success(let key):
                 guard
-                    let server = jsonObject["server"] as? String,
-                    let token = jsonObject["token"] as? String
+                    let decryptedString = decrypt(
+                        cipher: alertData,
+                        encryptionKey: key
+                    ),
+                    let data = decryptedString.data(using: .utf8)
                 else {
-                    throw NSError(domain: "JSONError", code: -2, userInfo: [NSLocalizedDescriptionKey: "Missing required fields"])
+                    completion(.failure(
+                        NSError(
+                            domain: "DecryptError",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Failed to decrypt data"]
+                        )
+                    ))
+                    return
                 }
+                
+                do {
+                    if let jsonObject = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                        guard
+                            let server = jsonObject["server"] as? String,
+                            let token = jsonObject["token"] as? String
+                        else {
+                            throw NSError(domain: "JSONError", code: -2, userInfo: [NSLocalizedDescriptionKey: "Missing required fields"])
+                        }
 
-                let isFromPhone = (jsonObject["isFromPhone"] as? Bool) ?? false
-                completion(.success((server: server, token: token, isFromPhone: isFromPhone)))
-            } else {
-                throw NSError(domain: "JSONError", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON format"])
+                        let isFromPhone = (jsonObject["isFromPhone"] as? Bool) ?? false
+                        completion(.success((server: server, token: token, isFromPhone: isFromPhone)))
+                    } else {
+                        throw NSError(domain: "JSONError", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON format"])
+                    }
+                } catch {
+                    completion(.failure(error))
+                }
+            case .failure(let error):
+                completion(.failure(error))
             }
-        } catch {
-            completion(.failure(error))
         }
+
     }
     
     private func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
@@ -238,7 +257,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                     case .success(let data):
                         SocketSignaling.shared.sendBusyCall(token: data.token)
                         self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .unanswered)
-                    }
                     case .failure(let error):
                         print(error)
                     }
