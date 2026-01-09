@@ -37,7 +37,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     private override init() {
         super.init()
-        setupCallKit()
     }
     
     private func setupCallKit() {
@@ -69,7 +68,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         alertData: String,
         completion: @escaping (Result<(server: String, token: String, isFromPhone: Bool), Error>) -> Void
     ) {
-        guard let decryptedString = decrypt(cipher: alertData, encryptionKey: "0123456789abcdef0123456789abcdef"),
+        //"0123456789abcdef0123456789abcdef"
+        guard let decryptedString = decrypt(cipher: alertData, encryptionKey: CryptoKeyManager.shared.getKey()),
               let data = decryptedString.data(using: .utf8) else {
             completion(.failure(NSError(domain: "DecryptError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to decrypt data"])))
             return
@@ -140,6 +140,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         if (self.currentCall != nil) {
             return completion(.failure(CallError.alreadyIncall))
         }
+        setupCallKit()
         self.currentCall = UUID.init()
         requestMicrophonePermission { granted in
             if (granted) {
@@ -222,24 +223,34 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         onMessageClicked: (() -> Void)? = nil,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
+        setupCallKit()
         let inUUID = UUID()
         self.metaData = metaData
         if let alertData = metaData["alert_data"] {
-            self.extractServerData(callerId: callerId, alertData: alertData) { result in
-                switch result {
-                case .success(let data):
-                    let update = CXCallUpdate()
-                    update.remoteHandle = CXHandle(type: .generic, value: callerName)
-                    update.localizedCallerName = callerName
-                    update.hasVideo = false
-                    if (self.currentCall != nil && self.isInCall) {
+            
+            let update = CXCallUpdate()
+            update.remoteHandle = CXHandle(type: .generic, value: callerName)
+            update.localizedCallerName = callerName
+            update.hasVideo = false
+            if (self.currentCall != nil && self.isInCall) {
+                self.extractServerData(callerId: callerId, alertData: alertData) { result in
+                    switch result {
+                    case .success(let data):
                         SocketSignaling.shared.sendBusyCall(token: data.token)
                         self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .unanswered)
+                    }
+                    case .failure(let error):
+                        print(error)
+                    }
+                }
+            } else {
+                self.provider?.reportNewIncomingCall(with: inUUID, update: update) { error in
+                    if let error = error {
+                        completion(.failure(error))
                     } else {
-                        self.provider?.reportNewIncomingCall(with: inUUID, update: update) { error in
-                            if let error = error {
-                                completion(.failure(error))
-                            } else {
+                        self.extractServerData(callerId: callerId, alertData: alertData) { result in
+                            switch result {
+                            case .success(let data):
                                 if let wssUrl = URL(string: data.server) {
                                     SocketSignaling.shared.connect(wssUrl: wssUrl, token: data.token, uuid: inUUID) {_ in
                                         
@@ -260,12 +271,11 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                     self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .failed)
                                     completion(.failure("" as! Error))
                                 }
+                            case .failure(let error):
+                                print(error)
                             }
                         }
                     }
-                    
-                case .failure(let error):
-                    print(error)
                 }
             }
         }
@@ -509,7 +519,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
-        print("🔇 Audio session deactivated")
+        print("Audio session deactivated")
         if let _ = currentCall {
             SocketSignaling.shared.releaseWebrtc()
         }
@@ -519,6 +529,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         if (calls[action.callUUID]?.callStatus == .incoming) {
             rejectCall()
         }
+        provider.invalidate()
         action.fulfill()
     }
     
@@ -536,7 +547,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         do {
             if audioSession.category != .playAndRecord {
                 try audioSession.setCategory(AVAudioSession.Category.playAndRecord,
-                                             options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker])
+                                             options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker, .mixWithOthers])
             }
             if audioSession.mode != .voiceChat {
                 try audioSession.setMode(.voiceChat)
