@@ -36,7 +36,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     private var defaultVolume: Float = 1.0
     
     private var incomingCallTimers: [UUID: Timer] = [:]
-    private let incomingCallTimeout: TimeInterval = 30.0
+    private let incomingCallTimeout: TimeInterval = 60.0
     
     private var cancelledCalls: Set<UUID> = []
     
@@ -54,12 +54,26 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         provider?.setDelegate(self, queue: nil)
         
         callController = CXCallController.init()
+        
+        NotificationCenter.default.addObserver(self,
+                                             selector: #selector(handleAudioInterruption),
+                                             name: AVAudioSession.interruptionNotification,
+                                             object: AVAudioSession.sharedInstance())
+        
+        // ✅ Handle audio route changes (WiFi ↔ 4G, Bluetooth connections, etc.)
+        NotificationCenter.default.addObserver(self,
+                                             selector: #selector(handleRouteChange),
+                                             name: AVAudioSession.routeChangeNotification,
+                                             object: AVAudioSession.sharedInstance())
     }
     
     public func deactiveCallKit() {
         provider?.invalidate()
         provider = nil
+        provider = nil
         callController = nil
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
     }
     
     private func requestTransaction(transaction : CXTransaction, completion: @escaping (Bool) -> Void) {
@@ -195,8 +209,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                     self.requestTransaction(transaction: transaction) { success in
                         if success {
                             
+                            // ✅ Check if call was cancelled during transaction
                             guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
-                                
+                                print("⚠️ Call was cancelled during setup, aborting...")
                                 return
                             }
                             
@@ -221,12 +236,21 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                     
                                     switch result {
                                     case .success(let callSession):
+                                        // ✅ CRITICAL: Check if cancelled BEFORE socket connect
+                                        guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
+                                            print("⚠️ Call was cancelled during API request, aborting...")
+                                            completion(.success(())) // Already handled in cancelCall()
+                                            return
+                                        }
+                                        
                                         if let wssUrl = URL(string: callSession.server) {
                                             
                                             self.postCallStatus(.calling)
                                             SocketSignaling.shared.connect(wssUrl: wssUrl, token: callSession.token, uuid: unwrappedCurrentCall) { status in
                                                 
+                                                // ✅ FINAL CHECK: Don't send anything if cancelled
                                                 guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
+                                                    print("⚠️ Call was cancelled before INIT_CALL, closing socket...")
                                                     SocketSignaling.shared.close()
                                                     return
                                                 }
@@ -325,10 +349,17 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                     completion(.success(()))
                                 } else {
                                     self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .failed)
-                                    completion(.failure("" as! Error))
+                                    let error = NSError(
+                                        domain: "CallManager",
+                                        code: -1,
+                                        userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"]
+                                    )
+                                    completion(.failure(error))
                                 }
                             case .failure(let error):
-                                print(error)
+                                print("Failed to extract server data: \(error)")
+                                self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .failed)
+                                completion(.failure(error))
                             }
                         }
                     }
@@ -466,7 +497,10 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func cancelCall(uuid: UUID) {
+        // ✅ Mark IMMEDIATELY (before any async operation)
+        print("🚫 Marking call as cancelled: \(uuid)")
         cancelledCalls.insert(uuid)
+        
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
@@ -480,6 +514,12 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.currentCall = nil
             }
             self.calls.removeValue(forKey: uuid)
+            
+            // ✅ Clean up after 2 seconds (handle late callbacks)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                self.cancelledCalls.remove(uuid)
+                print("🧹 Cleaned up cancelled call: \(uuid)")
+            }
         }
     }
     
@@ -641,8 +681,96 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             if audioSession.mode != .voiceChat {
                 try audioSession.setMode(.voiceChat)
             }
+            try audioSession.setActive(true)
         } catch {
             print("Error configuring AVAudioSession: \(error.localizedDescription)")
+        }
+    }
+    
+    @objc func handleAudioInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        switch type {
+        case .began:
+            print("🔊 Audio interruption began")
+            // Audio has effectively stopped
+            
+        case .ended:
+            print("🔊 Audio interruption ended")
+            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            
+            if options.contains(.shouldResume) {
+                print("🔊 Resuming audio session...")
+                configureAudioSession()
+                
+                // Re-initialize WebRTC audio if we are in a call
+                if let _ = self.currentCall {
+                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                         SocketSignaling.shared.initOffer()
+                     }
+                }
+            }
+            
+        @unknown default:
+            break
+        }
+    }
+    
+    @objc func handleRouteChange(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+            return
+        }
+        
+        switch reason {
+        case .newDeviceAvailable:
+            print("🔊 New audio device available (e.g., Bluetooth connected)")
+            // Reconfigure audio session for new device
+            if let _ = self.currentCall {
+                configureAudioSession()
+            }
+            
+        case .oldDeviceUnavailable:
+            print("🔊 Audio device disconnected (e.g., Bluetooth disconnected)")
+            // Reconfigure audio session to fallback device
+            if let _ = self.currentCall {
+                configureAudioSession()
+            }
+            
+        case .categoryChange:
+            print("🔊 Audio category changed")
+            // Ensure our category is still correct
+            if let _ = self.currentCall {
+                configureAudioSession()
+            }
+            
+        case .override:
+            print("🔊 Audio route override")
+            
+        case .wakeFromSleep:
+            print("🔊 Device woke from sleep")
+            // Reinitialize audio if in call
+            if let _ = self.currentCall {
+                configureAudioSession()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    SocketSignaling.shared.initOffer()
+                }
+            }
+            
+        case .noSuitableRouteForCategory:
+            print("🔊 No suitable audio route")
+            
+        case .routeConfigurationChange:
+            print("🔊 Audio route configuration changed")
+            
+        @unknown default:
+            break
         }
     }
     
