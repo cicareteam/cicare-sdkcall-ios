@@ -17,7 +17,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     static let sharedInstance: CallManager = CallManager()
     
-    private var isOutgoing: Bool = false
+    public var isOutgoing: Bool = false
     private var screenIsShown: Bool = false
     private var metaData: [String: String] = [:]
     var callVC: UIViewController?
@@ -39,6 +39,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     private let incomingCallTimeout: TimeInterval = 60.0
     
     private var cancelledCalls: Set<UUID> = []
+    private var callStatus: CallStatus?
     
     private override init() {
         super.init()
@@ -209,9 +210,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                     self.requestTransaction(transaction: transaction) { success in
                         if success {
                             
-                            // ✅ Check if call was cancelled during transaction
                             guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
-                                print("⚠️ Call was cancelled during setup, aborting...")
                                 return
                             }
                             
@@ -236,22 +235,15 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                     
                                     switch result {
                                     case .success(let callSession):
-                                        // ✅ CRITICAL: Check if cancelled BEFORE socket connect
-                                        guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
-                                            print("⚠️ Call was cancelled during API request, aborting...")
-                                            completion(.success(())) // Already handled in cancelCall()
-                                            return
-                                        }
                                         
                                         if let wssUrl = URL(string: callSession.server) {
                                             
                                             self.postCallStatus(.calling)
                                             SocketSignaling.shared.connect(wssUrl: wssUrl, token: callSession.token, uuid: unwrappedCurrentCall) { status in
                                                 
-                                                // ✅ FINAL CHECK: Don't send anything if cancelled
                                                 guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
-                                                    print("⚠️ Call was cancelled before INIT_CALL, closing socket...")
-                                                    SocketSignaling.shared.close()
+                                                    print("send signal cancel call")
+                                                    SocketSignaling.shared.send(event: "CANCEL", data: [:])
                                                     return
                                                 }
                                                 
@@ -427,6 +419,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             if (call.callType == .OUTGOING && (call.callStatus == .connecting || call.callStatus == .calling)) {
                 cancelCall(uuid: uuid)
             } else {
+                print("end call")
                 endCall(uuid: uuid)
             }
         }
@@ -659,12 +652,19 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         if (calls[action.callUUID]?.callStatus == .incoming) {
             rejectCall()
         }
+        cancelledCalls.removeAll()
         action.fulfill()
     }
     
     func postCallStatus(_ status: CallStatus) {
         delegate?.onCallStateChanged(status)
+        callStatus = status
         NotificationCenter.default.post(name: .callStatusChanged, object: nil, userInfo: ["status" : status.rawValue])
+        if (status == .reconnected) {
+            //SocketSignaling.shared.initOffer()
+        } else if (status == .reconnecting) {
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength" : status.rawValue])
+        }
     }
     
     private func postNetworkStatus(_ status: String) {
@@ -676,7 +676,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         do {
             if audioSession.category != .playAndRecord {
                 try audioSession.setCategory(AVAudioSession.Category.playAndRecord,
-                                             options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker, .mixWithOthers])
+                                             options: [.allowBluetoothHFP, .allowBluetoothA2DP, .defaultToSpeaker, .mixWithOthers])
             }
             if audioSession.mode != .voiceChat {
                 try audioSession.setMode(.voiceChat)
@@ -730,24 +730,19 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         
         switch reason {
         case .newDeviceAvailable:
-            print("🔊 New audio device available (e.g., Bluetooth connected)")
-            // Reconfigure audio session for new device
             if let _ = self.currentCall {
                 configureAudioSession()
             }
             
         case .oldDeviceUnavailable:
-            print("🔊 Audio device disconnected (e.g., Bluetooth disconnected)")
-            // Reconfigure audio session to fallback device
             if let _ = self.currentCall {
                 configureAudioSession()
             }
             
         case .categoryChange:
-            print("🔊 Audio category changed")
-            // Ensure our category is still correct
             if let _ = self.currentCall {
                 configureAudioSession()
+                print("🔊 Audio category changed")
             }
             
         case .override:
@@ -769,7 +764,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         case .routeConfigurationChange:
             print("🔊 Audio route configuration changed")
             
-        @unknown default:
+        case .unknown:
+            print("🔊 Audio unknown change")
             break
         }
     }

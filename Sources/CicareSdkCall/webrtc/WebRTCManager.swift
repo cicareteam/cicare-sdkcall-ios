@@ -76,6 +76,12 @@ class WebRTCManager: NSObject {
     }
 
     func initMic() {
+        
+        if peerConnection.transceivers.contains(where: { $0.mediaType == .audio }) {
+            print("Audio transceiver already exists, skipping initMic")
+            return
+        }
+        
         let audioSource = peerConnectionFactory.audioSource(with: RTCMediaConstraints(mandatoryConstraints: nil,
                                                                                       optionalConstraints: nil))
         
@@ -164,6 +170,13 @@ class WebRTCManager: NSObject {
     }
 
     func setRemoteDescription(sdp: RTCSessionDescription, completion: ((Error?) -> Void)? = nil) {
+        let state = peerConnection.signalingState
+
+        if sdp.type == .answer && state != .haveLocalOffer {
+            print("Ignoring answer SDP, invalid state:", state)
+            return
+        }
+        
         peerConnection.setRemoteDescription(sdp) { error in
           if let err = error {
             print("Remote SDP error: \(err)")

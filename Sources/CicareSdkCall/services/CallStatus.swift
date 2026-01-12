@@ -13,6 +13,7 @@ public enum CallStatus: String {
     case missed
     case answering
     case reconnecting
+    case reconnected
     case accepted
     case connected
     case connecting
