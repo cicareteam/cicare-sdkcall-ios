@@ -24,6 +24,10 @@ class WebRTCManager: NSObject {
     private var peerConnectionFactory: RTCPeerConnectionFactory!
     private var audioTrack: RTCAudioTrack?
     private let iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
+    
+    // Track mute state to preserve across reconnections
+    private var isMicMuted: Bool = false
+    
     override init() {
         super.init()
         initializePeerConnectionFactory()
@@ -31,6 +35,8 @@ class WebRTCManager: NSObject {
     }
     
     func reinit() {
+        // State will be preserved (isMicMuted not reset)
+        print("🔄 Reinitializing WebRTC, mute state: \(isMicMuted)")
         initializePeerConnectionFactory()
         createPeerConnection()
     }
@@ -79,6 +85,12 @@ class WebRTCManager: NSObject {
         
         if let transceiver = peerConnection.addTransceiver(of: .audio, init: transceiverInit) {
             transceiver.sender.track = audioTrack
+        }
+        
+        // CRITICAL: Restore mute state after creating new track (for reconnection scenarios)
+        if isMicMuted {
+            print("♻️ Restoring muted state after reinit")
+            setMicEnabled(false)
         }
         
         //peerConnection.addTransceiver(with: audioTrack!)
@@ -167,6 +179,10 @@ class WebRTCManager: NSObject {
     }
 
     func setMicEnabled(_ enabled: Bool) -> Bool {
+        // Update state FIRST before applying to track
+        isMicMuted = !enabled
+        print("🎤 Setting mic enabled: \(enabled), muted: \(isMicMuted)")
+        
         if (audioTrack != nil) {
             peerConnection.transceivers
                         .compactMap { return $0.sender.track as? RTCAudioTrack }
@@ -178,6 +194,10 @@ class WebRTCManager: NSObject {
             return false
         }
         //RTCAudioSession.sharedInstance().isAudioEnabled = enabled
+    }
+    
+    func isMuted() -> Bool {
+        return isMicMuted
     }
 
     func close() {

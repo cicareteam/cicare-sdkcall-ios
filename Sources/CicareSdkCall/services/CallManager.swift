@@ -35,12 +35,16 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     private var isInCall: Bool = false
     private var defaultVolume: Float = 1.0
     
+    private var incomingCallTimers: [UUID: Timer] = [:]
+    private let incomingCallTimeout: TimeInterval = 60.0
+    
+    private var cancelledCalls: Set<UUID> = []
+    
     private override init() {
         super.init()
-        setupCallKit()
     }
     
-    private func setupCallKit() {
+    public func setupCallKit() {
         let configuration = CXProviderConfiguration.init(localizedName: "CallKit")
         configuration.supportsVideo = false
         configuration.maximumCallsPerCallGroup = 1;
@@ -50,6 +54,26 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         provider?.setDelegate(self, queue: nil)
         
         callController = CXCallController.init()
+        
+        NotificationCenter.default.addObserver(self,
+                                             selector: #selector(handleAudioInterruption),
+                                             name: AVAudioSession.interruptionNotification,
+                                             object: AVAudioSession.sharedInstance())
+        
+        // ✅ Handle audio route changes (WiFi ↔ 4G, Bluetooth connections, etc.)
+        NotificationCenter.default.addObserver(self,
+                                             selector: #selector(handleRouteChange),
+                                             name: AVAudioSession.routeChangeNotification,
+                                             object: AVAudioSession.sharedInstance())
+    }
+    
+    public func deactiveCallKit() {
+        provider?.invalidate()
+        provider = nil
+        provider = nil
+        callController = nil
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
+        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
     }
     
     private func requestTransaction(transaction : CXTransaction, completion: @escaping (Bool) -> Void) {
@@ -69,29 +93,49 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         alertData: String,
         completion: @escaping (Result<(server: String, token: String, isFromPhone: Bool), Error>) -> Void
     ) {
-        guard let decryptedString = decrypt(cipher: alertData, encryptionKey: "0123456789abcdef0123456789abcdef"),
-              let data = decryptedString.data(using: .utf8) else {
-            completion(.failure(NSError(domain: "DecryptError", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to decrypt data"])))
-            return
-        }
-
-        do {
-            if let jsonObject = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+        
+        CryptoKeyManager.shared.getKey { result in
+            switch result {
+            case .success(let key):
                 guard
-                    let server = jsonObject["server"] as? String,
-                    let token = jsonObject["token"] as? String
+                    let decryptedString = decrypt(
+                        cipher: alertData,
+                        encryptionKey: key
+                    ),
+                    let data = decryptedString.data(using: .utf8)
                 else {
-                    throw NSError(domain: "JSONError", code: -2, userInfo: [NSLocalizedDescriptionKey: "Missing required fields"])
+                    completion(.failure(
+                        NSError(
+                            domain: "DecryptError",
+                            code: -1,
+                            userInfo: [NSLocalizedDescriptionKey: "Failed to decrypt data"]
+                        )
+                    ))
+                    return
                 }
+                
+                do {
+                    if let jsonObject = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
+                        guard
+                            let server = jsonObject["server"] as? String,
+                            let token = jsonObject["token"] as? String
+                        else {
+                            throw NSError(domain: "JSONError", code: -2, userInfo: [NSLocalizedDescriptionKey: "Missing required fields"])
+                        }
 
-                let isFromPhone = (jsonObject["isFromPhone"] as? Bool) ?? false
-                completion(.success((server: server, token: token, isFromPhone: isFromPhone)))
-            } else {
-                throw NSError(domain: "JSONError", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON format"])
+                        let isFromPhone = (jsonObject["isFromPhone"] as? Bool) ?? false
+                        completion(.success((server: server, token: token, isFromPhone: isFromPhone)))
+                    } else {
+                        throw NSError(domain: "JSONError", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid JSON format"])
+                    }
+                } catch {
+                    completion(.failure(error))
+                }
+            case .failure(let error):
+                completion(.failure(error))
             }
-        } catch {
-            completion(.failure(error))
         }
+
     }
     
     private func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
@@ -137,6 +181,11 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func outgoingCall(handle: String, calleeId: String, calleeName: String, calleeAvatar: String? = "", metaData: [String:String], callData: CallSessionRequest, completion: @escaping (Result<Void, CallError>) -> Void) {
+        
+        if (self.provider == nil) {
+            return
+        }
+        
         if (self.currentCall != nil) {
             return completion(.failure(CallError.alreadyIncall))
         }
@@ -159,6 +208,13 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                     transaction.addAction(action)
                     self.requestTransaction(transaction: transaction) { success in
                         if success {
+                            
+                            // ✅ Check if call was cancelled during transaction
+                            guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
+                                print("⚠️ Call was cancelled during setup, aborting...")
+                                return
+                            }
+                            
                             DispatchQueue.main.async {
                                 self.showCallScreen(uuid: unwrappedCurrentCall, callStatus: "connecting")
                             }
@@ -176,11 +232,29 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                 body: bodyData,
                                 headers: ["Content-Type": "application/json"],
                                 completion: { (result: Result<CallSession, APIError>) in
+                                    
+                                    
                                     switch result {
                                     case .success(let callSession):
+                                        // ✅ CRITICAL: Check if cancelled BEFORE socket connect
+                                        guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
+                                            print("⚠️ Call was cancelled during API request, aborting...")
+                                            completion(.success(())) // Already handled in cancelCall()
+                                            return
+                                        }
+                                        
                                         if let wssUrl = URL(string: callSession.server) {
+                                            
                                             self.postCallStatus(.calling)
                                             SocketSignaling.shared.connect(wssUrl: wssUrl, token: callSession.token, uuid: unwrappedCurrentCall) { status in
+                                                
+                                                // ✅ FINAL CHECK: Don't send anything if cancelled
+                                                guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
+                                                    print("⚠️ Call was cancelled before INIT_CALL, closing socket...")
+                                                    SocketSignaling.shared.close()
+                                                    return
+                                                }
+                                                
                                                 if status == .connected {
                                                     SocketSignaling.shared.initCall()
                                                 }
@@ -222,24 +296,39 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         onMessageClicked: (() -> Void)? = nil,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
+        
+        if (self.provider == nil) {
+            return
+        }
+        
         let inUUID = UUID()
+        self.startIncomingCallTimer(for: inUUID)
         self.metaData = metaData
         if let alertData = metaData["alert_data"] {
-            self.extractServerData(callerId: callerId, alertData: alertData) { result in
-                switch result {
-                case .success(let data):
-                    let update = CXCallUpdate()
-                    update.remoteHandle = CXHandle(type: .generic, value: callerName)
-                    update.localizedCallerName = callerName
-                    update.hasVideo = false
-                    if (self.currentCall != nil && self.isInCall) {
+            
+            let update = CXCallUpdate()
+            update.remoteHandle = CXHandle(type: .generic, value: callerName)
+            update.localizedCallerName = callerName
+            update.hasVideo = false
+            if (self.currentCall != nil && self.isInCall) {
+                self.extractServerData(callerId: callerId, alertData: alertData) { result in
+                    switch result {
+                    case .success(let data):
                         SocketSignaling.shared.sendBusyCall(token: data.token)
                         self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .unanswered)
+                    case .failure(let error):
+                        print(error)
+                    }
+                }
+            } else {
+                self.provider?.reportNewIncomingCall(with: inUUID, update: update) { error in
+                    if let error = error {
+                        completion(.failure(error))
                     } else {
-                        self.provider?.reportNewIncomingCall(with: inUUID, update: update) { error in
-                            if let error = error {
-                                completion(.failure(error))
-                            } else {
+                        print("Incoming report executed from sdk")
+                        self.extractServerData(callerId: callerId, alertData: alertData) { result in
+                            switch result {
+                            case .success(let data):
                                 if let wssUrl = URL(string: data.server) {
                                     SocketSignaling.shared.connect(wssUrl: wssUrl, token: data.token, uuid: inUUID) {_ in
                                         
@@ -255,17 +344,24 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                         callStatus: .incoming
                                     )
                                     SocketSignaling.shared.emit("RINGING_CALL", [:])
+                                    
                                     completion(.success(()))
                                 } else {
                                     self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .failed)
-                                    completion(.failure("" as! Error))
+                                    let error = NSError(
+                                        domain: "CallManager",
+                                        code: -1,
+                                        userInfo: [NSLocalizedDescriptionKey: "Invalid server URL"]
+                                    )
+                                    completion(.failure(error))
                                 }
+                            case .failure(let error):
+                                print("Failed to extract server data: \(error)")
+                                self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .failed)
+                                completion(.failure(error))
                             }
                         }
                     }
-                    
-                case .failure(let error):
-                    print(error)
                 }
             }
         }
@@ -288,7 +384,37 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.dismissCallScreen()
                 self.currentCall = nil
                 self.calls.removeValue(forKey: uuid)
+                self.cancelIncomingCallTimer(for: uuid)
             }
+        }
+    }
+    
+    private func startIncomingCallTimer(for uuid: UUID) {
+        cancelIncomingCallTimer(for: uuid)
+        let timer = Timer.scheduledTimer(withTimeInterval: incomingCallTimeout, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+           if let callInfo = self.calls[uuid],
+               callInfo.callType == .INCOMING,
+               callInfo.callStatus == .incoming {
+               self.provider?.reportCall(with: uuid, endedAt: Date(), reason: .unanswered)
+                SocketSignaling.shared.setCallState(.missed)
+                self.postCallStatus(.missed)
+               self.calls.removeValue(forKey: uuid)
+                if self.currentCall == uuid {
+                    self.currentCall = nil
+                }
+                SocketSignaling.shared.releaseWebrtc()
+                self.dismissCallScreen()
+            }
+           self.incomingCallTimers.removeValue(forKey: uuid)
+        }
+       incomingCallTimers[uuid] = timer
+    }
+    
+    private func cancelIncomingCallTimer(for uuid: UUID) {
+        if let timer = incomingCallTimers[uuid] {
+            timer.invalidate()
+            incomingCallTimers.removeValue(forKey: uuid)
         }
     }
     
@@ -358,6 +484,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func rejectCall(uuid: UUID) {
+        self.cancelIncomingCallTimer(for: uuid)
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
@@ -369,9 +496,14 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func cancelCall(uuid: UUID) {
+        // ✅ Mark IMMEDIATELY (before any async operation)
+        print("🚫 Marking call as cancelled: \(uuid)")
+        cancelledCalls.insert(uuid)
+        
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
+        print("cancel call")
         requestTransaction(transaction: transaction) { success in
             SocketSignaling.shared.setCallState(.cancel)
             self.delegate?.onCallStateChanged(.cancel)
@@ -382,6 +514,12 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.currentCall = nil
             }
             self.calls.removeValue(forKey: uuid)
+            
+            // ✅ Clean up after 2 seconds (handle late callbacks)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                self.cancelledCalls.remove(uuid)
+                print("🧹 Cleaned up cancelled call: \(uuid)")
+            }
         }
     }
     
@@ -401,6 +539,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func endCall(uuid: UUID) {
+        self.cancelIncomingCallTimer(for: uuid)
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
@@ -417,7 +556,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func endedCall(uuid: UUID, callState: CallStatus) {
-        
+        self.cancelIncomingCallTimer(for: uuid)
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
@@ -441,6 +580,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
+        cancelIncomingCallTimer(for: action.callUUID)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if (!self.screenIsShown) {
                 self.showCallScreen(uuid: action.callUUID ,callStatus: "connecting")
@@ -509,7 +649,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
-        print("🔇 Audio session deactivated")
+        print("Audio session deactivated")
         if let _ = currentCall {
             SocketSignaling.shared.releaseWebrtc()
         }
@@ -536,13 +676,101 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         do {
             if audioSession.category != .playAndRecord {
                 try audioSession.setCategory(AVAudioSession.Category.playAndRecord,
-                                             options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker])
+                                             options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker, .mixWithOthers])
             }
             if audioSession.mode != .voiceChat {
                 try audioSession.setMode(.voiceChat)
             }
+            try audioSession.setActive(true)
         } catch {
             print("Error configuring AVAudioSession: \(error.localizedDescription)")
+        }
+    }
+    
+    @objc func handleAudioInterruption(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let typeValue = userInfo[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else {
+            return
+        }
+        
+        switch type {
+        case .began:
+            print("🔊 Audio interruption began")
+            // Audio has effectively stopped
+            
+        case .ended:
+            print("🔊 Audio interruption ended")
+            guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
+            let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
+            
+            if options.contains(.shouldResume) {
+                print("🔊 Resuming audio session...")
+                configureAudioSession()
+                
+                // Re-initialize WebRTC audio if we are in a call
+                if let _ = self.currentCall {
+                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                         SocketSignaling.shared.initOffer()
+                     }
+                }
+            }
+            
+        @unknown default:
+            break
+        }
+    }
+    
+    @objc func handleRouteChange(notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
+            return
+        }
+        
+        switch reason {
+        case .newDeviceAvailable:
+            print("🔊 New audio device available (e.g., Bluetooth connected)")
+            // Reconfigure audio session for new device
+            if let _ = self.currentCall {
+                configureAudioSession()
+            }
+            
+        case .oldDeviceUnavailable:
+            print("🔊 Audio device disconnected (e.g., Bluetooth disconnected)")
+            // Reconfigure audio session to fallback device
+            if let _ = self.currentCall {
+                configureAudioSession()
+            }
+            
+        case .categoryChange:
+            print("🔊 Audio category changed")
+            // Ensure our category is still correct
+            if let _ = self.currentCall {
+                configureAudioSession()
+            }
+            
+        case .override:
+            print("🔊 Audio route override")
+            
+        case .wakeFromSleep:
+            print("🔊 Device woke from sleep")
+            // Reinitialize audio if in call
+            if let _ = self.currentCall {
+                configureAudioSession()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    SocketSignaling.shared.initOffer()
+                }
+            }
+            
+        case .noSuitableRouteForCategory:
+            print("🔊 No suitable audio route")
+            
+        case .routeConfigurationChange:
+            print("🔊 Audio route configuration changed")
+            
+        @unknown default:
+            break
         }
     }
     

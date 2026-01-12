@@ -1,3 +1,4 @@
+
 //
 //  SocketSignaling.swift
 //  CicareSdkCall
@@ -40,7 +41,10 @@ class SocketSignaling: NSObject {
     private var isCallConnected = false
     private var isReconnecting = false
     
-
+    private var disconnectTimer: Timer?
+    private let disconnectGracePeriod: TimeInterval = 35.0  // 35 detik grace period (increased for better stability)
+    private var disconnectStartTime: Date?  // Track when disconnect started
+    
     override init() {
         super.init()
     }
@@ -69,9 +73,9 @@ class SocketSignaling: NSObject {
         manager = SocketManager(socketURL: wssUrl,
                                     config: [.log(false),
                                              .compress,
-                                             .reconnectWait(1),
-                                             .reconnectWaitMax(3),
-                                             .reconnectAttempts(3),
+                                             .reconnectWait(2),
+                                             .reconnectWaitMax(5),
+                                             .reconnectAttempts(8),
                                              .forceNew(true),
                                              .forceWebsockets(true),
                                              .reconnects(true),
@@ -98,8 +102,16 @@ class SocketSignaling: NSObject {
                 }
             }
             self.isConnected = true
+            
+            self.cancelDisconnectTimer()
+            
             if (self.isReconnecting) {
-                print("socket reconnected")
+                if let start = self.disconnectStartTime {
+                    let elapsed = Date().timeIntervalSince(start)
+                    print("✅ Socket reconnected after \(String(format: "%.1f", elapsed))s")
+                } else {
+                    print("✅ Socket reconnected")
+                }
                 self.reinitWebRTC()
                 self.emit("RECONNECT", [:])
                 self.isReconnecting = false
@@ -112,29 +124,66 @@ class SocketSignaling: NSObject {
             completion(.connected)
         }
         socket?.on(clientEvent: .disconnect) { _, _ in
+            print("⚠️ Socket disconnected, starting grace period...")
             self.isConnected = false
-            self.manager = nil
-            self.socket = nil
-            completion(.disconnected)
-            self.close()
-            print("socket disconnected")
+            self.startDisconnectGracePeriod()
         }
         socket?.on(clientEvent: .reconnect) { _, _ in
-            //self.initOffer()
-            print("socket reconnecting")
+            print("🔄 Socket attempting to reconnect...")
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
             self.isReconnecting = true
         }
         socket?.on(clientEvent: .error) { _, _ in
-            self.isConnected = false
-            self.manager = nil
-            self.socket = nil
-            completion(.disconnected)
-            self.close()
+            // self.isConnected = false
+            // self.manager = nil
+            // self.socket = nil
+            // completion(.disconnected)
+            // self.close()
+            if !self.isReconnecting {
+                self.startDisconnectGracePeriod()
+            }
         }
 
         registerHandlers()
         socket?.connect()
+    }
+    
+    private func startDisconnectGracePeriod() {
+        // Only start if not already started (prevent multiple timers)
+        guard disconnectTimer == nil else {
+            print("⚠️ Grace period already running, not starting new timer")
+            return
+        }
+        
+        disconnectStartTime = Date()
+        print("⏱️ Starting disconnect grace period (\(disconnectGracePeriod)s)")
+        
+        disconnectTimer = Timer.scheduledTimer(withTimeInterval: disconnectGracePeriod, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+            
+            if !self.isConnected {
+                if let start = self.disconnectStartTime {
+                    let elapsed = Date().timeIntervalSince(start)
+                    print("❌ Grace period expired after \(String(format: "%.1f", elapsed))s, closing call...")
+                }
+                NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["error": "call_failed_no_connection"])
+                self.close()
+            } else {
+                print("✅ Connected before grace period expired")
+            }
+            
+            self.disconnectTimer = nil
+            self.disconnectStartTime = nil
+        }
+    }
+    
+    private func cancelDisconnectTimer() {
+        if disconnectTimer != nil {
+            print("🛑 Cancelling disconnect grace period timer")
+        }
+        disconnectTimer?.invalidate()
+        disconnectTimer = nil
+        disconnectStartTime = nil
     }
     
     private func reinitWebRTC() {
@@ -350,7 +399,12 @@ class SocketSignaling: NSObject {
     func muteCall(_ mute: Bool) -> Bool {
         //self.send(event: "MUTE", data: ["mute": mute])
         let success = self.webrtcManager?.setMicEnabled(!mute);
+        print("🎤 Mute call: \(mute), success: \(success ?? false)")
         return success ?? false
+    }
+    
+    func isMicMuted() -> Bool {
+        return webrtcManager?.isMuted() ?? false
     }
     
     func initCall() {
@@ -365,11 +419,14 @@ class SocketSignaling: NSObject {
         guard isConnected else { return }
         isConnected = false
         isReconnecting = false
+        
+        cancelDisconnectTimer()
+        timer?.invalidate()
+        timer = nil
+        
         CallManager.sharedInstance.endCall(uuid: self.uuid!)
         socket?.disconnect()
         socket?.removeAllHandlers()
-        timer?.invalidate()
-        timer = nil
         socket = nil
         
     }

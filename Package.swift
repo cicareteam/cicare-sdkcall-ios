@@ -16,7 +16,7 @@ let package = Package(
             targets: ["CicareSdkCall"]),
     ],
     dependencies: [
-        .package(url: "https://github.com/socketio/socket.io-client-swift", .upToNextMinor(from: "16.1.1")),
+        .package(url: "https://github.com/socketio/socket.io-client-swift", exact: "16.1.1"),
         .package(url: "https://github.com/stasel/WebRTC.git", branch: "latest"),
         .package(url: "https://github.com/daltoniam/Starscream.git", exact: "4.0.8"),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", exact: "1.8.4")
@@ -32,6 +32,7 @@ let package = Package(
                 .product(name: "Starscream", package: "Starscream"),
                 .product(name: "CryptoSwift", package: "CryptoSwift")
             ],
+            path: "./Sources/CicareSdkCall",
             resources: [
                 .process("Media.xcassets")
             ]

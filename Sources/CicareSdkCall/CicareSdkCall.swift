@@ -85,9 +85,21 @@ public class CicareSdkCall: CallEventListener {
         CallManager.sharedInstance.delegate = self
     }
     
+    public func activateCallService() {
+        CallManager.sharedInstance.setupCallKit()
+    }
+    
+    public func deactivateCallService() {
+        CallManager.sharedInstance.deactiveCallKit()
+    }
+    
     public func setAPI(baseUrl: String, token: String) {
         APIService.shared.baseURL = baseUrl
         APIService.shared.apiKey = token
+        CryptoKeyManager.shared.baseUrl = baseUrl
+        CryptoKeyManager.shared.token = token
+        CryptoKeyManager.shared.getKey { _ in
+        }
     }
     
     func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
