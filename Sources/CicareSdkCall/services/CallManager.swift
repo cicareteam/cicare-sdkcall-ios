@@ -35,11 +35,16 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     private var isInCall: Bool = false
     private var defaultVolume: Float = 1.0
     
+    private var incomingCallTimers: [UUID: Timer] = [:]
+    private let incomingCallTimeout: TimeInterval = 30.0
+    
+    private var cancelledCalls: Set<UUID> = []
+    
     private override init() {
         super.init()
     }
     
-    private func setupCallKit() {
+    public func setupCallKit() {
         let configuration = CXProviderConfiguration.init(localizedName: "CallKit")
         configuration.supportsVideo = false
         configuration.maximumCallsPerCallGroup = 1;
@@ -49,6 +54,12 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         provider?.setDelegate(self, queue: nil)
         
         callController = CXCallController.init()
+    }
+    
+    public func deactiveCallKit() {
+        provider?.invalidate()
+        provider = nil
+        callController = nil
     }
     
     private func requestTransaction(transaction : CXTransaction, completion: @escaping (Bool) -> Void) {
@@ -156,10 +167,14 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func outgoingCall(handle: String, calleeId: String, calleeName: String, calleeAvatar: String? = "", metaData: [String:String], callData: CallSessionRequest, completion: @escaping (Result<Void, CallError>) -> Void) {
+        
+        if (self.provider == nil) {
+            return
+        }
+        
         if (self.currentCall != nil) {
             return completion(.failure(CallError.alreadyIncall))
         }
-        setupCallKit()
         self.currentCall = UUID.init()
         requestMicrophonePermission { granted in
             if (granted) {
@@ -179,6 +194,12 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                     transaction.addAction(action)
                     self.requestTransaction(transaction: transaction) { success in
                         if success {
+                            
+                            guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
+                                
+                                return
+                            }
+                            
                             DispatchQueue.main.async {
                                 self.showCallScreen(uuid: unwrappedCurrentCall, callStatus: "connecting")
                             }
@@ -196,11 +217,20 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                 body: bodyData,
                                 headers: ["Content-Type": "application/json"],
                                 completion: { (result: Result<CallSession, APIError>) in
+                                    
+                                    
                                     switch result {
                                     case .success(let callSession):
                                         if let wssUrl = URL(string: callSession.server) {
+                                            
                                             self.postCallStatus(.calling)
                                             SocketSignaling.shared.connect(wssUrl: wssUrl, token: callSession.token, uuid: unwrappedCurrentCall) { status in
+                                                
+                                                guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
+                                                    SocketSignaling.shared.close()
+                                                    return
+                                                }
+                                                
                                                 if status == .connected {
                                                     SocketSignaling.shared.initCall()
                                                 }
@@ -242,7 +272,11 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         onMessageClicked: (() -> Void)? = nil,
         completion: @escaping (Result<Void, Error>) -> Void
     ) {
-        setupCallKit()
+        
+        if (self.provider == nil) {
+            return
+        }
+        
         let inUUID = UUID()
         self.metaData = metaData
         if let alertData = metaData["alert_data"] {
@@ -266,6 +300,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                     if let error = error {
                         completion(.failure(error))
                     } else {
+                        print("Incoming report executed from sdk")
                         self.extractServerData(callerId: callerId, alertData: alertData) { result in
                             switch result {
                             case .success(let data):
@@ -284,6 +319,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                         callStatus: .incoming
                                     )
                                     SocketSignaling.shared.emit("RINGING_CALL", [:])
+                                    
+                                    self.startIncomingCallTimer(for: inUUID)
+                                    
                                     completion(.success(()))
                                 } else {
                                     self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .failed)
@@ -316,7 +354,37 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.dismissCallScreen()
                 self.currentCall = nil
                 self.calls.removeValue(forKey: uuid)
+                self.cancelIncomingCallTimer(for: uuid)
             }
+        }
+    }
+    
+    private func startIncomingCallTimer(for uuid: UUID) {
+        cancelIncomingCallTimer(for: uuid)
+        let timer = Timer.scheduledTimer(withTimeInterval: incomingCallTimeout, repeats: false) { [weak self] _ in
+            guard let self = self else { return }
+           if let callInfo = self.calls[uuid],
+               callInfo.callType == .INCOMING,
+               callInfo.callStatus == .incoming {
+               self.provider?.reportCall(with: uuid, endedAt: Date(), reason: .unanswered)
+                SocketSignaling.shared.setCallState(.missed)
+                self.postCallStatus(.timeout)
+               self.calls.removeValue(forKey: uuid)
+                if self.currentCall == uuid {
+                    self.currentCall = nil
+                }
+                SocketSignaling.shared.releaseWebrtc()
+                self.dismissCallScreen()
+            }
+           self.incomingCallTimers.removeValue(forKey: uuid)
+        }
+       incomingCallTimers[uuid] = timer
+    }
+    
+    private func cancelIncomingCallTimer(for uuid: UUID) {
+        if let timer = incomingCallTimers[uuid] {
+            timer.invalidate()
+            incomingCallTimers.removeValue(forKey: uuid)
         }
     }
     
@@ -386,6 +454,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func rejectCall(uuid: UUID) {
+        self.cancelIncomingCallTimer(for: uuid)
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
@@ -397,6 +466,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func cancelCall(uuid: UUID) {
+        cancelledCalls.insert(uuid)
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
@@ -429,6 +499,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func endCall(uuid: UUID) {
+        self.cancelIncomingCallTimer(for: uuid)
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
@@ -445,7 +516,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func endedCall(uuid: UUID, callState: CallStatus) {
-        
+        self.cancelIncomingCallTimer(for: uuid)
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
@@ -469,6 +540,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
+        cancelIncomingCallTimer(for: action.callUUID)
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if (!self.screenIsShown) {
                 self.showCallScreen(uuid: action.callUUID ,callStatus: "connecting")
@@ -547,7 +619,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         if (calls[action.callUUID]?.callStatus == .incoming) {
             rejectCall()
         }
-        provider.invalidate()
         action.fulfill()
     }
     

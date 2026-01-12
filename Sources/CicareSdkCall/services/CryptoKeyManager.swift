@@ -123,6 +123,7 @@ private extension CryptoKeyManager {
                 completion(.failure(NSError(domain: "CryptoKey", code: -2)))
                 return
             }
+            print("key \(key)")
 
             completion(.success(key))
         }.resume()

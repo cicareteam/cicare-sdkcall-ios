@@ -86,6 +86,22 @@ CicareSdkCall.shared.setAPI(baseUrl: "https://your-api-url.com", token: "your-ap
 
 ---
 
+### Activate Call Service
+
+To activate call service (will initiate CXProvider)
+
+```swift
+   CicareSdkCall.shared.activateCallService()
+```
+
+### Deactivate Call Service
+
+To deactivate call service (will invalidate CXProvider in C-iCare SDK CallManager)
+
+```swift
+   CicareSdkCall.shared.deactivateCallService()
+```
+
 ### 2. Make an Outgoing Call
 
 Use the following code to start an outgoing call:
