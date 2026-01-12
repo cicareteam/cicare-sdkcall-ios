@@ -75,17 +75,25 @@ public class CallScreenViewController: UIViewController {
             // Reset timer setiap ada perubahan path
             self.checkTimer?.cancel()
 
-            if path.status == .unsatisfied {
+            if path.status == .unsatisfied  {
                 // Delay 3 detik untuk memastikan benar-benar tidak ada koneksi
                 let task = DispatchWorkItem {
                     if self.monitor.currentPath.status == .unsatisfied {
                         DispatchQueue.main.async {
-                            if !self.isNetworkReallyDown {
-                                self.isNetworkReallyDown = true
-                                self.showErrorConnectionAlert(
-                                    text: self.metaData["call_failed_no_connection"] ?? "No internet connection",
-                                    icon: nil
-                                )
+                            if !self.isNetworkReallyDown{
+                                if (!self.isConnected) {
+                                    print("internet down")
+                                    self.isNetworkReallyDown = true
+                                    self.showErrorConnectionAlert(
+                                        text: self.metaData["call_failed_no_connection"] ?? "No internet connection",
+                                        icon: nil
+                                    )
+                                } else {
+                                    DispatchQueue.main.async {
+                                        self.connectionLabel.text = self.metaData["call_reconnecting"] ?? "Reconnecting..."
+                                    }
+                                    SocketSignaling.shared.reconnect()
+                                }
                             }
                         }
                     }
@@ -213,7 +221,9 @@ public class CallScreenViewController: UIViewController {
                     self.connectedButtonStack.isHidden = false
                 }
             case .connecting:
-                self.isConnected = true
+                if (!CallManager.sharedInstance.isOutgoing) {
+                    self.isConnected = true
+                }
                 self.statusLabel.text = self.metaData["call_connecting"] ?? "Connecting"
                 DispatchQueue.main.async {
                     self.incomingButtonStack.isHidden = true
@@ -266,6 +276,7 @@ public class CallScreenViewController: UIViewController {
         //if (!dismissed) {
         self.isConnected = false
      //   self.pendingDismissed = true
+        self.secondsElapsed = 0
         self.callDurationTimer?.invalidate()
         self.muteButton.isEnabled = false
         self.speakerButton.isEnabled = false
@@ -436,7 +447,6 @@ public class CallScreenViewController: UIViewController {
 
     func startCallDurationTimer() {
         callDurationTimer?.invalidate()
-        secondsElapsed = 0
         DispatchQueue.main.async {
           self.callDurationTimer = Timer.scheduledTimer(timeInterval: 1.0,
                                                         target: self,
@@ -485,7 +495,7 @@ public class CallScreenViewController: UIViewController {
             self.speakerButton.button.backgroundColor =  self.isSpeakerOn ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             let session = AVAudioSession.sharedInstance()
             do {
-                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
+                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP, .allowBluetoothA2DP])
                 try session.setActive(true)
                 
                 // Toggle the audio route to speaker or default (e.g., earphone)

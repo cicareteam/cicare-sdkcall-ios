@@ -20,6 +20,12 @@ enum SocketIOClientStatus: String {
     case disconnected
 }
 
+enum SocketDisconnectReason {
+    case network
+    case server
+    case unknown
+}
+
 class SocketSignaling: NSObject {
     
     static let shared = SocketSignaling()
@@ -42,7 +48,7 @@ class SocketSignaling: NSObject {
     private var isReconnecting = false
     
     private var disconnectTimer: Timer?
-    private let disconnectGracePeriod: TimeInterval = 35.0  // 35 detik grace period (increased for better stability)
+    private let disconnectGracePeriod: TimeInterval = 30.0  // 35 detik grace period (increased for better stability)
     private var disconnectStartTime: Date?  // Track when disconnect started
     
     override init() {
@@ -81,7 +87,6 @@ class SocketSignaling: NSObject {
                                              .reconnects(true),
                                              .connectParams(["token": token])])
         socket = manager?.socket(forNamespace: "/")
-        print("socket connected")
         
         connectStartTime = Date()
         
@@ -101,6 +106,8 @@ class SocketSignaling: NSObject {
                     NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
                 }
             }
+            
+            print("connected")
             self.isConnected = true
             
             self.cancelDisconnectTimer()
@@ -112,7 +119,7 @@ class SocketSignaling: NSObject {
                 } else {
                     print("✅ Socket reconnected")
                 }
-                self.reinitWebRTC()
+                CallManager.sharedInstance.postCallStatus(.reconnecting)
                 self.emit("RECONNECT", [:])
                 self.isReconnecting = false
             }
@@ -124,23 +131,51 @@ class SocketSignaling: NSObject {
             completion(.connected)
         }
         socket?.on(clientEvent: .disconnect) { _, _ in
-            print("⚠️ Socket disconnected, starting grace period...")
             self.isConnected = false
-            self.startDisconnectGracePeriod()
+            if (self.callState == CallStatus.connected) {
+                CallManager.sharedInstance.postCallStatus(.reconnecting)
+                self.startDisconnectGracePeriod()
+            }
         }
         socket?.on(clientEvent: .reconnect) { _, _ in
-            print("🔄 Socket attempting to reconnect...")
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
             self.isReconnecting = true
         }
-        socket?.on(clientEvent: .error) { _, _ in
-            // self.isConnected = false
-            // self.manager = nil
-            // self.socket = nil
-            // completion(.disconnected)
-            // self.close()
-            if !self.isReconnecting {
-                self.startDisconnectGracePeriod()
+        socket?.on(clientEvent: .error) { [weak self] data, ack in
+            
+            print("⚠️ Socket error:", data)
+            print("Socket error:", ack)
+            
+            guard let self = self else { return }
+
+            let errorDescription = self.parseSocketError(data)
+
+            
+
+            let reason = self.classifySocketErrorDescription(errorDescription)
+            print("⚠️ Socket error:", reason)
+
+            self.isConnected = false
+            
+            switch reason {
+
+            case .network:
+                if !self.isReconnecting {
+                    self.startDisconnectGracePeriod()
+                }
+
+            case .server:
+                CallManager.sharedInstance.endActiveCall()
+                self.isConnected = false
+                self.manager = nil
+                self.socket = nil
+                completion(.disconnected)
+                self.close()
+
+            case .unknown:
+                if !self.isReconnecting {
+                    self.startDisconnectGracePeriod()
+                }
             }
         }
 
@@ -148,10 +183,14 @@ class SocketSignaling: NSObject {
         socket?.connect()
     }
     
+    public func reconnect() {
+        self.isReconnecting = true
+        socket?.connect()
+    }
+    
     private func startDisconnectGracePeriod() {
         // Only start if not already started (prevent multiple timers)
         guard disconnectTimer == nil else {
-            print("⚠️ Grace period already running, not starting new timer")
             return
         }
         
@@ -217,7 +256,9 @@ class SocketSignaling: NSObject {
             }
         }
         socket?.on("RECONNECTING") { _, _ in
-            CallManager.sharedInstance.postCallStatus(.reconnecting)
+            self.reinitWebRTC()
+            CallManager.sharedInstance.postCallStatus(.reconnected)
+            
         }
         /*socket?.on("RECONNECTED") { _, _ in
             CallManager.sharedInstance.postCallStatus(.connected)
@@ -225,6 +266,7 @@ class SocketSignaling: NSObject {
         socket?.on("CONNECTED") { _, _ in
             //self.onCallStateChanged(.connected)
             //self.socket?.emit("CONNECTED")
+            self.callState = .connected
             CallManager.sharedInstance.callConnected()
             if (!self.isCallConnected) {
                 self.isCallConnected = true
@@ -266,11 +308,12 @@ class SocketSignaling: NSObject {
             
         }
         socket?.on("SDP_ANSWER") { data, _ in
-            print("SDP answer")
             guard let dict = data.first as? [String: Any],
                   let sdpStr = dict["sdp"] as? String else { return }
             let sdp = RTCSessionDescription(type: .answer, sdp: sdpStr)
-            self.webrtcManager?.setRemoteDescription(sdp: sdp)
+            self.webrtcManager?.setRemoteDescription(sdp: sdp) { error in
+                print("sdp", sdp)
+            }
         }
     }
     
@@ -356,6 +399,7 @@ class SocketSignaling: NSObject {
                 }
             }
         }
+        callState = .connected
     }
     
     func send(event: String, data: [String: Any]) {
@@ -382,6 +426,7 @@ class SocketSignaling: NSObject {
                         "sdp": sdpPayload
                     ]
                     self.send(event: "SDP_OFFER", data: payload)
+                    print("sdp", sdpDesc.sdp)
                 case .failure(let error):
                     print("Failed to create offer:", error.localizedDescription)
                 }
@@ -463,6 +508,9 @@ extension SocketSignaling: WebRTCEventCallback {
         case .closed:
             print("ice state closed")
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "lost"])
+            if (self.callState == .connected || self.callState == .connecting) {
+                reinitWebRTC()
+            }
             break
         case .connected, .completed:
             print("ice state connected")
@@ -474,4 +522,67 @@ extension SocketSignaling: WebRTCEventCallback {
         }
     }
     func onIceGatheringStateChanged(state: RTCIceGatheringState) {}
+}
+
+extension SocketSignaling {
+    func classifySocketError(_ error: Error?) -> SocketDisconnectReason {
+        guard let error = error else { return .unknown }
+
+        let desc = error.localizedDescription.lowercased()
+
+        if desc.contains("network") ||
+           desc.contains("timeout") ||
+           desc.contains("offline") ||
+           desc.contains("not connected") ||
+           desc.contains("connection reset") {
+            return .network
+        }
+
+        if desc.contains("server") ||
+           desc.contains("unauthorized") ||
+           desc.contains("forbidden") {
+            return .server
+        }
+
+        return .unknown
+    }
+    
+    func parseSocketError(_ data: [Any]) -> String {
+        guard let first = data.first else { return "unknown socket error" }
+
+        if let dict = first as? [String: Any] {
+            return dict["message"] as? String
+                ?? dict["reason"] as? String
+                ?? dict.description
+        }
+
+        if let str = first as? String {
+            return str
+        }
+
+        return String(describing: first)
+    }
+    
+    func classifySocketErrorDescription(_ desc: String) -> SocketDisconnectReason {
+        let d = desc.lowercased()
+
+        if d.contains("network")
+            || d.contains("timeout")
+            || d.contains("offline")
+            || d.contains("not connected")
+            || d.contains("connection reset") {
+            return .network
+        }
+
+        if d.contains("unauthorized")
+            || d.contains("forbidden")
+            || d.contains("server")
+            || d.contains("invalid token"){
+            return .server
+        }
+
+        return .unknown
+    }
+
+
 }
