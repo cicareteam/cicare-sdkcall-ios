@@ -278,6 +278,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         }
         
         let inUUID = UUID()
+        self.startIncomingCallTimer(for: inUUID)
         self.metaData = metaData
         if let alertData = metaData["alert_data"] {
             
@@ -320,12 +321,17 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                     )
                                     SocketSignaling.shared.emit("RINGING_CALL", [:])
                                     
-                                    self.startIncomingCallTimer(for: inUUID)
-                                    
                                     completion(.success(()))
                                 } else {
                                     self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .failed)
-                                    completion(.failure("" as! Error))
+                                    let error = NSError(
+                                        domain: "CallManager",
+                                        code: -1001,
+                                        userInfo: [
+                                            NSLocalizedDescriptionKey: "Invalid WebSocket server URL"
+                                        ]
+                                    )
+                                    completion(.failure(error))
                                 }
                             case .failure(let error):
                                 print(error)
@@ -368,7 +374,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                callInfo.callStatus == .incoming {
                self.provider?.reportCall(with: uuid, endedAt: Date(), reason: .unanswered)
                 SocketSignaling.shared.setCallState(.missed)
-                self.postCallStatus(.timeout)
+                self.postCallStatus(.missed)
                self.calls.removeValue(forKey: uuid)
                 if self.currentCall == uuid {
                     self.currentCall = nil
@@ -470,6 +476,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
+        print("cancel call")
         requestTransaction(transaction: transaction) { success in
             SocketSignaling.shared.setCallState(.cancel)
             self.delegate?.onCallStateChanged(.cancel)
