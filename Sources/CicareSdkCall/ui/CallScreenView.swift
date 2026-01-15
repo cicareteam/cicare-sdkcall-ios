@@ -8,7 +8,7 @@ public class CallScreenViewController: UIViewController {
     var calleeName: String = ""
     var callStatus: String = ""
     var avatarUrl: String? = ""
-    var metaData: [String: String] = [:]
+    var metaData: [String: String] = ["call_failed_no_connection":"No internet connection"]
     var dismissed = true
     var pendingDismissed = false
     
@@ -16,6 +16,8 @@ public class CallScreenViewController: UIViewController {
     let queue = DispatchQueue.global(qos: .background)
     var isNetworkReallyDown = false
     var checkTimer: DispatchWorkItem?
+    private var reconnectStartTime: Date?
+    private let reconnectTimeout: TimeInterval = 18
     
     // MARK: - UI Elements
     private let nameLabel = UILabel()
@@ -71,39 +73,54 @@ public class CallScreenViewController: UIViewController {
         gradientBackground.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.insertSubview(gradientBackground, at: 0)
         
-        monitor.pathUpdateHandler = { path in
-            // Reset timer setiap ada perubahan path
-            self.checkTimer?.cancel()
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self = self else { return }
+            
+            if path.status == .satisfied {
+                // Reset semua state
+                self.checkTimer?.cancel()
+                self.checkTimer = nil
+                self.reconnectStartTime = nil
+                self.isNetworkReallyDown = false
 
-            if path.status == .unsatisfied  {
-                // Delay 3 detik untuk memastikan benar-benar tidak ada koneksi
-                let task = DispatchWorkItem {
-                    if self.monitor.currentPath.status == .unsatisfied {
-                        DispatchQueue.main.async {
-                            if !self.isNetworkReallyDown{
-                                if (!self.isConnected) {
-                                    print("internet down")
-                                    self.isNetworkReallyDown = true
-                                    self.showErrorConnectionAlert(
-                                        text: self.metaData["call_failed_no_connection"] ?? "No internet connection",
-                                        icon: nil
-                                    )
-                                } else {
-                                    DispatchQueue.main.async {
-                                        self.connectionLabel.text = self.metaData["call_reconnecting"] ?? "Reconnecting..."
-                                    }
-                                    SocketSignaling.shared.reconnect()
-                                }
+                return
+            }
+            
+            if (!self.isConnected) {
+                return
+            }
+            
+            DispatchQueue.main.async {
+                
+                // Jika baru pertama kali putus
+                if self.reconnectStartTime == nil {
+                    self.reconnectStartTime = Date()
+                    
+                    self.connectionLabel.text = self.metaData["call_reconnecting"] ?? "Reconnecting..."
+                    SocketSignaling.shared.reconnect()
+                    
+                    let task = DispatchWorkItem { [weak self] in
+                        guard let self = self else { return }
+                        
+                        if self.monitor.currentPath.status == .unsatisfied {
+                            self.isNetworkReallyDown = true
+                            DispatchQueue.main.async {
+                                /*self.showErrorConnectionAlert(
+                                    text: self.metaData["call_failed_no_connection"]
+                                    ?? "No internet connection",
+                                    icon: nil
+                                )*/
+                                self.connectionLabel.text = self.metaData["call_lost_connection"] ?? "Lost Connection..."
                             }
                         }
                     }
+                    self.checkTimer = task
+                    DispatchQueue.global()
+                        .asyncAfter(deadline: .now() + self.reconnectTimeout,
+                                    execute: task)
                 }
-                self.checkTimer = task
-                DispatchQueue.global().asyncAfter(deadline: .now() + 3, execute: task)
-            } else {
-                // Kalau koneksi balik lagi
-                self.isNetworkReallyDown = false
             }
+
         }
         monitor.start(queue: queue)
 
@@ -126,6 +143,7 @@ public class CallScreenViewController: UIViewController {
     }
     
     @objc private func handleNetworkSignal(_ notification: Notification) {
+        
         guard let value = (notification.userInfo?["signalStrength"] as? String)
             ?? (notification.userInfo?["error"] as? String)
         else {
@@ -147,7 +165,8 @@ public class CallScreenViewController: UIViewController {
                     self.connectionLabel.text = ""
                 }
             } else if (notification.userInfo?["error"] != nil) {
-                self.showErrorConnectionAlert(text: self.metaData[value] ?? value, icon: AsssetKitImageProvider.Resources.errorIcon.image)
+                self.showErrorConnectionAlert(text: self.metaData[value] ?? value,
+                                              icon: ((notification.userInfo?["error"]) as! String == "call_failed_no_connection") ? nil :  AsssetKitImageProvider.Resources.errorIcon.image)
             }
         }
     }
@@ -596,7 +615,7 @@ public class CallScreenViewController: UIViewController {
             self.speakerButton.button.backgroundColor =  self.isSpeakerOn ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             let session = AVAudioSession.sharedInstance()
             do {
-                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth])
+                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP, .allowBluetoothA2DP])
                 try session.setActive(true)
                 
                 // Toggle the audio route to speaker or default (e.g., earphone)

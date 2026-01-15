@@ -12,6 +12,7 @@ import CallKit
 import UIKit
 import SwiftUI
 import CommonCrypto
+import Network
 
 final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, CXProviderDelegate {
     
@@ -182,7 +183,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func outgoingCall(handle: String, calleeId: String, calleeName: String, calleeAvatar: String? = "", metaData: [String:String], callData: CallSessionRequest, completion: @escaping (Result<Void, CallError>) -> Void) {
-        
+        self.metaData = metaData
         if (self.provider == nil) {
             return
         }
@@ -225,52 +226,61 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                             SocketSignaling.shared.setCallState(.connecting)
                             self.postCallStatus(.connecting)
                             
-                            APIService.shared.request(
-                                path: "api/sdk-call/one2one",
-                                method: "POST",
-                                body: bodyData,
-                                headers: ["Content-Type": "application/json"],
-                                completion: { (result: Result<CallSession, APIError>) in
-                                    
-                                    
-                                    switch result {
-                                    case .success(let callSession):
-                                        
-                                        if let wssUrl = URL(string: callSession.server) {
+                            self.isInternetAvailable { available in
+                                if (available == false) {
+                                    DispatchQueue.main.async {
+                                        return self.postNetworkStatus("call_failed_no_connection", internetType: true)
+                                    }
+                                } else {
+                                    APIService.shared.request(
+                                        path: "api/sdk-call/one2one",
+                                        method: "POST",
+                                        body: bodyData,
+                                        headers: ["Content-Type": "application/json"],
+                                        completion: { (result: Result<CallSession, APIError>) in
                                             
-                                            self.postCallStatus(.calling)
-                                            SocketSignaling.shared.connect(wssUrl: wssUrl, token: callSession.token, uuid: unwrappedCurrentCall) { status in
+                                            
+                                            switch result {
+                                            case .success(let callSession):
                                                 
-                                                guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
-                                                    print("send signal cancel call")
-                                                    SocketSignaling.shared.send(event: "CANCEL", data: [:])
-                                                    return
+                                                if let wssUrl = URL(string: callSession.server) {
+                                                    
+                                                    self.postCallStatus(.calling)
+                                                    SocketSignaling.shared.connect(wssUrl: wssUrl, token: callSession.token, uuid: unwrappedCurrentCall) { status in
+                                                        
+                                                        guard !self.cancelledCalls.contains(unwrappedCurrentCall) else {
+                                                            print("send signal cancel call")
+                                                            SocketSignaling.shared.send(event: "CANCEL", data: [:])
+                                                            return
+                                                        }
+                                                        
+                                                        if status == .connected {
+                                                            SocketSignaling.shared.initCall()
+                                                        }
+                                                    }
+                                                    completion(.success(()))
+                                                } else {
+                                                    completion(.failure(CallError.internalServerError(code: 505, message: "Server not found")))
+                                                    self.postNetworkStatus("server_not_found")
                                                 }
-                                                
-                                                if status == .connected {
-                                                    SocketSignaling.shared.initCall()
+                                                break
+                                            case .failure(let error):
+                                                switch error {
+                                                case .unauthorized:
+                                                    completion(.failure(CallError.apiUnauthorized))
+                                                    self.postNetworkStatus("call_failed_api")
+                                                case .badRequest(let data):
+                                                    completion(.failure(CallError.internalServerError(code: data.code ?? 400, message: data.message)))
+                                                    self.postNetworkStatus(data.message)
+                                                default:
+                                                    completion(.failure(CallError.internalServerError(code: 500, message: error.localizedDescription)))
+                                                    self.postNetworkStatus("call_failed_api")
                                                 }
                                             }
-                                            completion(.success(()))
-                                        } else {
-                                            completion(.failure(CallError.internalServerError(code: 505, message: "Server not found")))
-                                            self.postNetworkStatus("server_not_found")
-                                        }
-                                        break
-                                    case .failure(let error):
-                                        switch error {
-                                        case .unauthorized:
-                                            completion(.failure(CallError.apiUnauthorized))
-                                            self.postNetworkStatus("call_failed_api")
-                                        case .badRequest(let data):
-                                            completion(.failure(CallError.internalServerError(code: data.code ?? 400, message: data.message)))
-                                            self.postNetworkStatus(data.message)
-                                        default:
-                                            completion(.failure(CallError.internalServerError(code: 500, message: error.localizedDescription)))
-                                            self.postNetworkStatus("call_failed_api")
-                                        }
-                                    }
-                                })
+                                        })
+                                    
+                                }
+                            }
                         }
                     }
                 }
@@ -667,8 +677,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         }
     }
     
-    private func postNetworkStatus(_ status: String) {
-        NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["error" : status])
+    private func postNetworkStatus(_ status: String, internetType: Bool = false) {
+        NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["error" : status, "internet": internetType])
     }
     
     private func configureAudioSession() {
@@ -767,6 +777,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         case .unknown:
             print("🔊 Audio unknown change")
             break
+        @unknown default:
+            break
         }
     }
     
@@ -833,6 +845,20 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         }
     }
     
+}
+
+extension CallManager {
+    func isInternetAvailable(completion: @escaping (Bool) -> Void) {
+        let monitor = NWPathMonitor()
+        let queue = DispatchQueue.global(qos: .background)
+
+        monitor.pathUpdateHandler = { path in
+            completion(path.status == .satisfied)
+            monitor.cancel()
+        }
+
+        monitor.start(queue: queue)
+    }
 }
 
 enum CallType: String {

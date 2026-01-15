@@ -46,6 +46,8 @@ class SocketSignaling: NSObject {
     
     private var isCallConnected = false
     private var isReconnecting = false
+    private let reconnectMax = 4
+    private var reconnectAttempt: Int = 0
     
     private var disconnectTimer: Timer?
     private let disconnectGracePeriod: TimeInterval = 30.0  // 35 detik grace period (increased for better stability)
@@ -107,20 +109,15 @@ class SocketSignaling: NSObject {
                 }
             }
             
-            print("connected")
             self.isConnected = true
+            self.reconnectAttempt = 0
             
             self.cancelDisconnectTimer()
             
             if (self.isReconnecting) {
-                if let start = self.disconnectStartTime {
-                    let elapsed = Date().timeIntervalSince(start)
-                    print("✅ Socket reconnected after \(String(format: "%.1f", elapsed))s")
-                } else {
-                    print("✅ Socket reconnected")
-                }
                 CallManager.sharedInstance.postCallStatus(.reconnecting)
                 self.emit("RECONNECT", [:])
+                print("set reconnect false")
                 self.isReconnecting = false
             }
             for action in self.pendingActions {
@@ -134,7 +131,9 @@ class SocketSignaling: NSObject {
             self.isConnected = false
             if (self.callState == CallStatus.connected) {
                 CallManager.sharedInstance.postCallStatus(.reconnecting)
-                self.startDisconnectGracePeriod()
+                //self.startDisconnectGracePeriod()
+            } else {
+                self.reconnectAttempt = self.reconnectMax
             }
         }
         socket?.on(clientEvent: .reconnect) { _, _ in
@@ -143,25 +142,23 @@ class SocketSignaling: NSObject {
         }
         socket?.on(clientEvent: .error) { [weak self] data, ack in
             
-            print("⚠️ Socket error:", data)
-            print("Socket error:", ack)
-            
             guard let self = self else { return }
+            
 
             let errorDescription = self.parseSocketError(data)
 
-            
-
             let reason = self.classifySocketErrorDescription(errorDescription)
-            print("⚠️ Socket error:", reason)
 
             self.isConnected = false
             
             switch reason {
 
             case .network:
-                if !self.isReconnecting {
-                    self.startDisconnectGracePeriod()
+                if self.isReconnecting {
+                    //self.startDisconnectGracePeriod()
+                    NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
+                    self.reconnectAttempt += 1
+                    print("reconnecting attempt", self.reconnectAttempt)
                 }
 
             case .server:
@@ -173,8 +170,21 @@ class SocketSignaling: NSObject {
                 self.close()
 
             case .unknown:
-                if !self.isReconnecting {
-                    self.startDisconnectGracePeriod()
+                if self.isReconnecting {
+                    //self.startDisconnectGracePeriod()
+                    self.reconnectAttempt += 1
+                }
+            }
+            
+            if (self.reconnectAttempt >= self.reconnectMax) {
+                NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "lost"])
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    CallManager.sharedInstance.endActiveCall()
+                    self.isConnected = false
+                    self.manager = nil
+                    self.socket = nil
+                    completion(.disconnected)
+                    self.close()
                 }
             }
         }
@@ -258,7 +268,7 @@ class SocketSignaling: NSObject {
         socket?.on("RECONNECTING") { _, _ in
             self.reinitWebRTC()
             CallManager.sharedInstance.postCallStatus(.reconnected)
-            
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
         }
         /*socket?.on("RECONNECTED") { _, _ in
             CallManager.sharedInstance.postCallStatus(.connected)
@@ -312,7 +322,6 @@ class SocketSignaling: NSObject {
                   let sdpStr = dict["sdp"] as? String else { return }
             let sdp = RTCSessionDescription(type: .answer, sdp: sdpStr)
             self.webrtcManager?.setRemoteDescription(sdp: sdp) { error in
-                print("sdp", sdp)
             }
         }
     }
@@ -336,10 +345,12 @@ class SocketSignaling: NSObject {
     private func handlePong() {
         guard let start = pingStartTime else { return }
         let latency = Date().timeIntervalSince(start) * 1000
-        if latency > 300 {
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
-        } else {
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "other"])
+        if (!self.isReconnecting) {
+            if latency > 300 {
+                NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
+            } else {
+                NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "other"])
+            }
         }
         pingStartTime = nil
     }
@@ -426,7 +437,6 @@ class SocketSignaling: NSObject {
                         "sdp": sdpPayload
                     ]
                     self.send(event: "SDP_OFFER", data: payload)
-                    print("sdp", sdpDesc.sdp)
                 case .failure(let error):
                     print("Failed to create offer:", error.localizedDescription)
                 }
@@ -464,7 +474,7 @@ class SocketSignaling: NSObject {
         guard isConnected else { return }
         isConnected = false
         isReconnecting = false
-        
+        self.reconnectAttempt = 0
         cancelDisconnectTimer()
         timer?.invalidate()
         timer = nil
@@ -499,25 +509,25 @@ extension SocketSignaling: WebRTCEventCallback {
         switch state {
         case .disconnected:
             print("ice state disconnected")
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
+            //NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "disconnected"])
             break
         case .failed:
             print("ice state failed")
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
+            //NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "disconnected"])
             break
         case .closed:
             print("ice state closed")
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "lost"])
+            //NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "lost_connection"])
             if (self.callState == .connected || self.callState == .connecting) {
                 reinitWebRTC()
             }
             break
         case .connected, .completed:
             print("ice state connected")
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
+            //NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
             break
         default:
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "other"])
+            //NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "other"])
             break
         }
     }
