@@ -686,7 +686,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         do {
             if audioSession.category != .playAndRecord {
                 try audioSession.setCategory(AVAudioSession.Category.playAndRecord,
-                                             options: [.allowBluetoothHFP, .allowBluetoothA2DP, .defaultToSpeaker, .mixWithOthers])
+                                             options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker, .mixWithOthers])
             }
             if audioSession.mode != .voiceChat {
                 try audioSession.setMode(.voiceChat)
