@@ -1,1 +1,3 @@
-./Issue
+Issue/
+.swiftpm
+.DS_Store
