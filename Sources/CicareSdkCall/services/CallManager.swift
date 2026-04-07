@@ -72,7 +72,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     public func deactiveCallKit() {
         provider?.invalidate()
         provider = nil
-        provider = nil
         callController = nil
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
@@ -382,9 +381,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             requestTransaction(transaction: transaction) { success in
                 SocketSignaling.shared.setCallState(.missed)
                 self.postCallStatus(.ended)
-                SocketSignaling.shared.releaseWebrtc()
-                self.dismissCallScreen()
                 self.currentCall = nil
+                self.dismissCallScreen()
+                SocketSignaling.shared.releaseWebrtc()
                 self.calls.removeValue(forKey: uuid)
                 self.cancelIncomingCallTimer(for: uuid)
             }
@@ -405,8 +404,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 if self.currentCall == uuid {
                     self.currentCall = nil
                 }
-                SocketSignaling.shared.releaseWebrtc()
                 self.dismissCallScreen()
+                SocketSignaling.shared.releaseWebrtc()
             }
            self.incomingCallTimers.removeValue(forKey: uuid)
         }
@@ -512,9 +511,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             self.delegate?.onCallStateChanged(.cancel)
             self.postCallStatus(.ended)
             if (self.currentCall == uuid) {
-                SocketSignaling.shared.releaseWebrtc()
-                self.dismissCallScreen()
                 self.currentCall = nil
+                self.dismissCallScreen()
+                SocketSignaling.shared.releaseWebrtc()
             }
             self.calls.removeValue(forKey: uuid)
             
@@ -534,9 +533,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             requestTransaction(transaction: transaction) { success in
                 SocketSignaling.shared.setCallState(.ended)
                 self.postCallStatus(.ended)
-                SocketSignaling.shared.releaseWebrtc()
-                self.calls.removeValue(forKey: uuid)
                 self.currentCall = nil
+                self.calls.removeValue(forKey: uuid)
+                SocketSignaling.shared.releaseWebrtc()
             }
         }
     }
@@ -550,9 +549,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             SocketSignaling.shared.setCallState(.ended)
             self.postCallStatus(.ended)
             if (self.currentCall == uuid) {
-                SocketSignaling.shared.releaseWebrtc()
-                self.dismissCallScreen()
                 self.currentCall = nil
+                self.dismissCallScreen()
+                SocketSignaling.shared.releaseWebrtc()
             }
             self.calls.removeValue(forKey: uuid)
         }
@@ -566,9 +565,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         requestTransaction(transaction: transaction) { success in
             self.postCallStatus(callState)
             if (self.currentCall == uuid) {
-                SocketSignaling.shared.releaseWebrtc()
-                self.dismissCallScreen()
                 self.currentCall = nil
+                self.dismissCallScreen()
+                SocketSignaling.shared.releaseWebrtc()
             }
             self.calls.removeValue(forKey: uuid)
             
@@ -653,9 +652,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
         print("Audio session deactivated")
-        if let _ = currentCall {
-            SocketSignaling.shared.releaseWebrtc()
-        }
+        // releaseWebrtc() sudah dipanggil dari endedCall/endCall/cancelCall/missedCall
+        // Tidak perlu dipanggil lagi di sini untuk menghindari double-close
     }
     
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
@@ -686,7 +684,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         do {
             if audioSession.category != .playAndRecord {
                 try audioSession.setCategory(AVAudioSession.Category.playAndRecord,
-                                             options: [.allowBluetooth, .allowBluetoothA2DP, .defaultToSpeaker, .mixWithOthers])
+                                             options: [.allowBluetoothHFP, .allowBluetoothA2DP, .defaultToSpeaker, .mixWithOthers])
             }
             if audioSession.mode != .voiceChat {
                 try audioSession.setMode(.voiceChat)
@@ -732,6 +730,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     @objc func handleRouteChange(notification: Notification) {
+        guard let _ = self.currentCall,
+          self.screenIsShown else { return }
         guard let userInfo = notification.userInfo,
               let reasonValue = userInfo[AVAudioSessionRouteChangeReasonKey] as? UInt,
               let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else {
@@ -783,7 +783,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     private func showCallScreen(uuid: UUID, callStatus: String) {
-        guard self.calls[uuid] != nil else { return }
+        guard let callInfo = self.calls[uuid] else { return }
         self.screenIsShown = true
         // Tutup window lama jika ada
         self.callWindow?.isHidden = true
@@ -792,16 +792,16 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         let vc: UIViewController
         if #available(iOS 13.0, *) {
             vc = UIHostingController(rootView: CallScreenWrapper(
-                calleeName: self.calls[uuid]!.callName,
+                calleeName: callInfo.callName,
                 callStatus: callStatus,
-                avatarUrl: self.calls[uuid]!.callAvatar,
+                avatarUrl: callInfo.callAvatar,
                 metaData: self.metaData
             ))
         } else {
             let screen = CallScreenViewController()
             screen.callStatus = callStatus
-            screen.calleeName = self.calls[uuid]!.callName
-            screen.avatarUrl = self.calls[uuid]!.callAvatar
+            screen.calleeName = callInfo.callName
+            screen.avatarUrl = callInfo.callAvatar
             screen.metaData = self.metaData
             vc = screen
         }

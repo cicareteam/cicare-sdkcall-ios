@@ -99,7 +99,8 @@ class SocketSignaling: NSObject {
                     completion(status)
                 }
         }
-        socket?.on(clientEvent: .connect) { _, _ in
+        socket?.on(clientEvent: .connect) { [weak self] _, _ in
+            guard let self = self else { return }
             if let start = self.connectStartTime {
                 let elapsed = Date().timeIntervalSince(start)
                 if elapsed > 1.5 {
@@ -127,7 +128,8 @@ class SocketSignaling: NSObject {
             self.startPingMonitoring()
             completion(.connected)
         }
-        socket?.on(clientEvent: .disconnect) { _, _ in
+        socket?.on(clientEvent: .disconnect) { [weak self] _, _ in
+            guard let self = self else { return }
             self.isConnected = false
             if (self.callState == CallStatus.connected) {
                 CallManager.sharedInstance.postCallStatus(.reconnecting)
@@ -136,7 +138,8 @@ class SocketSignaling: NSObject {
                 self.reconnectAttempt = self.reconnectMax
             }
         }
-        socket?.on(clientEvent: .reconnect) { _, _ in
+        socket?.on(clientEvent: .reconnect) { [weak self] _, _ in
+            guard let self = self else { return }
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
             self.isReconnecting = true
         }
@@ -241,22 +244,23 @@ class SocketSignaling: NSObject {
     }
     
     private func registerHandlers() {
-        socket?.on("INIT_OK") { _, _ in
-            self.initOffer()
+        socket?.on("INIT_OK") { [weak self] _, _ in
+            self?.initOffer()
         }
-        socket?.on("PONG") { _, _ in
-            self.handlePong()
+        socket?.on("PONG") { [weak self] _, _ in
+            self?.handlePong()
         }
         socket?.on("ANSWER_OK") { _, _ in
         }
-        socket?.on("MISSED_CALL") {_, _ in
-            //self.onCallStateChanged(.missed)
+        socket?.on("MISSED_CALL") { [weak self] _, _ in
+            //self?.onCallStateChanged(.missed)
             CallManager.sharedInstance.missedCall()
-            self.close()
+            self?.close()
         }
         socket?.on("RINGING_OK") {_, _ in
         }
-        socket?.on("ACCEPTED") { _, _ in
+        socket?.on("ACCEPTED") { [weak self] _, _ in
+            guard let self = self else { return }
             //self.onCallStateChanged(.accepted)
             //self.socket?.emit("CONNECTED")
             CallManager.sharedInstance.callAccepted()
@@ -265,15 +269,16 @@ class SocketSignaling: NSObject {
                 self.isCallConnected = true
             }
         }
-        socket?.on("RECONNECTING") { _, _ in
-            self.reinitWebRTC()
+        socket?.on("RECONNECTING") { [weak self] _, _ in
+            self?.reinitWebRTC()
             CallManager.sharedInstance.postCallStatus(.reconnected)
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
         }
         /*socket?.on("RECONNECTED") { _, _ in
             CallManager.sharedInstance.postCallStatus(.connected)
         }*/
-        socket?.on("CONNECTED") { _, _ in
+        socket?.on("CONNECTED") { [weak self] _, _ in
+            guard let self = self else { return }
             //self.onCallStateChanged(.connected)
             //self.socket?.emit("CONNECTED")
             self.callState = .connected
@@ -285,15 +290,17 @@ class SocketSignaling: NSObject {
         socket?.on("RINGING") { _, _ in
             CallManager.sharedInstance.callRinging()
         }
-        socket?.on("HANGUP") { _, _ in
+        socket?.on("HANGUP") { [weak self] _, _ in
+            guard let self = self, let uuid = self.uuid else { return }
             if (self.callState != .ended && self.callState != .refused  && self.callState != .busy) {
-                CallManager.sharedInstance.endedCall(uuid: self.uuid!, callState: .ended)
+                CallManager.sharedInstance.endedCall(uuid: uuid, callState: .ended)
             }
             self.send(event: "CLEARING_SESSION", data: [:])
             self.close()
         }
-        socket?.on("NO_ANSWER") { _, _ in
-            CallManager.sharedInstance.endedCall(uuid: self.uuid!, callState: .timeout)
+        socket?.on("NO_ANSWER") { [weak self] _, _ in
+            guard let self = self, let uuid = self.uuid else { return }
+            CallManager.sharedInstance.endedCall(uuid: uuid, callState: .timeout)
             self.send(event: "CLEARING_SESSION", data: [:])
             self.callState = nil
             //self.disconnect()
@@ -304,32 +311,32 @@ class SocketSignaling: NSObject {
         socket?.on("BUSY") { _, _ in
             CallManager.sharedInstance.callBusy()
         }
-        socket?.on("SDP_OFFER") { data, _ in
+        socket?.on("SDP_OFFER") { [weak self] data, _ in
             guard let dict = data.first as? [String: Any],
                   let sdpStr = dict["sdp"] as? String else { return }
             DispatchQueue.main.async {
-                //self.onCallStateChanged(.connecting)
-                self.webrtcManager?.initMic()
+                //self?.onCallStateChanged(.connecting)
+                self?.webrtcManager?.initMic()
                 let sdp = RTCSessionDescription(type: .offer, sdp: sdpStr)
-                self.webrtcManager?.setRemoteDescription(sdp: sdp)
+                self?.webrtcManager?.setRemoteDescription(sdp: sdp)
             }
         }
         socket?.on("SLOWLINK") { data, _ in
             
         }
-        socket?.on("SDP_ANSWER") { data, _ in
+        socket?.on("SDP_ANSWER") { [weak self] data, _ in
             guard let dict = data.first as? [String: Any],
                   let sdpStr = dict["sdp"] as? String else { return }
             let sdp = RTCSessionDescription(type: .answer, sdp: sdpStr)
-            self.webrtcManager?.setRemoteDescription(sdp: sdp) { error in
+            self?.webrtcManager?.setRemoteDescription(sdp: sdp) { error in
             }
         }
     }
     
     private func startPingMonitoring() {
         timer?.invalidate()
-        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { _ in
-            self.sendPing()
+        timer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            self?.sendPing()
         }
     }
 
@@ -447,8 +454,11 @@ class SocketSignaling: NSObject {
     }
     
     public func releaseWebrtc() {
-        webrtcManager?.close()
-        webrtcManager = nil
+        guard let manager = webrtcManager else { return }
+        webrtcManager = nil 
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
+            manager.close()
+        }
     }
     
     func muteCall(_ mute: Bool) -> Bool {
@@ -478,8 +488,9 @@ class SocketSignaling: NSObject {
         cancelDisconnectTimer()
         timer?.invalidate()
         timer = nil
-        
-        CallManager.sharedInstance.endCall(uuid: self.uuid!)
+        if let uuid = self.uuid {
+            CallManager.sharedInstance.endCall(uuid: uuid)
+        }
         socket?.disconnect()
         socket?.removeAllHandlers()
         socket = nil
@@ -517,6 +528,7 @@ extension SocketSignaling: WebRTCEventCallback {
             break
         case .closed:
             print("ice state closed")
+            guard self.webrtcManager != nil else { return }
             //NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "lost_connection"])
             if (self.callState == .connected || self.callState == .connecting) {
                 reinitWebRTC()

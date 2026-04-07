@@ -1,0 +1,586 @@
+Incident Identifier: FD7F966C-A7AA-498D-A110-0965FCA9A803
+Distributor ID:      com.apple.AppStore
+Hardware Model:      iPhone11,8
+Process:             Driver [84608]
+Path:                /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Driver
+Identifier:          vn.gsm.md
+Version:             3.4.0 (360)
+AppStoreTools:       17C7003g
+AppVariant:          1:iPhone11,8:18
+Code Type:           ARM-64 (Native)
+Role:                Foreground
+Parent Process:      launchd [1]
+Coalition:           vn.gsm.md [594]
+
+Date/Time:           2026-04-01 19:44:53.0905 +0700
+Launch Time:         2026-04-01 19:03:49.4195 +0700
+OS Version:          iPhone OS 18.6.2 (22G100)
+Release Type:        User
+Baseband Version:    7.03.01
+Report Version:      104
+
+Exception Type:  EXC_BAD_ACCESS (SIGSEGV)
+Exception Subtype: KERN_INVALID_ADDRESS at 0xeeed07927549ebd2 -> 0xffffff927549ebd2 (possible pointer authentication failure)
+Exception Codes: 0x0000000000000001, 0xeeed07927549ebd2
+VM Region Info: 0xffffff927549ebd2 is not in any region.  
+      REGION TYPE                 START - END      [ VSIZE] PRT/MAX SHRMOD  REGION DETAIL
+      UNUSED SPACE AT START
+--->  
+      UNUSED SPACE AT END
+Termination Reason: SIGNAL 11 Segmentation fault: 11
+Terminating Process: exc handler [84608]
+
+Triggered by Thread:  13
+
+
+Thread 0 name:
+Thread 0:
+0   libsystem_kernel.dylib        	0x00000001d4155ce4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x00000001d415939c mach_msg2_internal + 76 (mach_msg.c:201)
+2   libsystem_kernel.dylib        	0x00000001d41592b8 mach_msg_overwrite + 428 (mach_msg.c:0)
+3   libsystem_kernel.dylib        	0x00000001d4159100 mach_msg + 24 (mach_msg.c:323)
+4   libdispatch.dylib             	0x000000018b2a1c08 _dispatch_mach_send_and_wait_for_reply + 548 (mach.c:1997)
+5   libdispatch.dylib             	0x000000018b2a1fa8 dispatch_mach_send_with_result_and_wait_for_reply + 60 (mach.c:2034)
+6   libxpc.dylib                  	0x000000020d7df7f0 xpc_connection_send_message_with_reply_sync + 256 (connection.c:4111)
+7   Foundation                    	0x0000000181fbe9b0 __NSXPCCONNECTION_IS_WAITING_FOR_A_SYNCHRONOUS_REPLY__ + 16 (NSXPCConnection.m:223)
+8   Foundation                    	0x0000000181f7988c -[NSXPCConnection _sendInvocation:orArguments:count:methodSignature:selector:withProxy:] + 2100 (NSXPCConnection.m:1673)
+9   CoreFoundation                	0x00000001833186cc ___forwarding___ + 996 (NSForwarding.m:3646)
+10  CoreFoundation                	0x0000000183318940 _CF_forwarding_prep_0 + 96 (:-1)
+11  AudioSession                  	0x00000001a25c4268 -[AVAudioSession privateSetActive:withOptions:error:accessor:] + 320 (AVAudioSession_iOS.mm:1912)
+12  AudioSession                  	0x00000001a25c40e8 -[AVAudioSession setActive:withOptions:error:] + 72 (AVAudioSession_iOS.mm:1889)
+13  CiCareSDKCall                 	0x0000000106de465c specialized CallManager.configureAudioSession() + 508 (CallManager.swift:694)
+14  CiCareSDKCall                 	0x0000000106dda634 CallManager.configureAudioSession() + 4 (CallManager.swift:754)
+15  CiCareSDKCall                 	0x0000000106dda634 CallManager.handleRouteChange(notification:) + 1768
+16  CiCareSDKCall                 	0x0000000106dda7dc @objc CallScreenViewController.handleNetworkSignal(_:) + 120
+17  CoreFoundation                	0x00000001832fef80 __CFNOTIFICATIONCENTER_IS_CALLING_OUT_TO_AN_OBSERVER__ + 148 (CFNotificationCenter.c:701)
+18  CoreFoundation                	0x0000000183301fb0 ___CFXRegistrationPost_block_invoke + 92 (CFNotificationCenter.c:194)
+19  CoreFoundation                	0x0000000183301ef4 _CFXRegistrationPost + 436 (CFNotificationCenter.c:222)
+20  CoreFoundation                	0x00000001832ffa4c _CFXNotificationPost + 736 (CFNotificationCenter.c:1248)
+21  Foundation                    	0x0000000181f757ac -[NSNotificationCenter postNotificationName:object:userInfo:] + 92 (NSNotification.m:531)
+22  AudioSession                  	0x00000001a25bb960 __100-[AVAudioSession(ClientCommonImplementation) privatePostNotificationForType:name:userInfo:accessor:]_block_invoke + 272 (AVAudioSessionClient_Common.mm:223)
+23  libdispatch.dylib             	0x000000018b286aac _dispatch_call_block_and_release + 32 (init.c:1575)
+24  libdispatch.dylib             	0x000000018b2a0584 _dispatch_client_callout + 16 (client_callout.mm:85)
+25  libdispatch.dylib             	0x000000018b2bd5c8 _dispatch_main_queue_drain.cold.5 + 812 (queue.c:8104)
+26  libdispatch.dylib             	0x000000018b295d30 _dispatch_main_queue_drain + 180 (queue.c:8085)
+27  libdispatch.dylib             	0x000000018b295c6c _dispatch_main_queue_callback_4CF + 44 (queue.c:8264)
+28  CoreFoundation                	0x0000000183356c30 __CFRUNLOOP_IS_SERVICING_THE_MAIN_DISPATCH_QUEUE__ + 16 (CFRunLoop.c:1793)
+29  CoreFoundation                	0x00000001832fa394 __CFRunLoopRun + 1980 (CFRunLoop.c:3163)
+30  CoreFoundation                	0x00000001832fbadc CFRunLoopRunSpecific + 572 (CFRunLoop.c:3434)
+31  GraphicsServices              	0x00000001d0121454 GSEventRunModal + 168 (GSEvent.c:2196)
+32  UIKitCore                     	0x0000000185d1d274 -[UIApplication _run] + 816 (UIApplication.m:3845)
+33  UIKitCore                     	0x0000000185ce8a28 UIApplicationMain + 336 (UIApplication.m:5540)
+34  Driver                        	0x0000000104d27fac main + 168 (main.swift:10)
+35  dyld                          	0x00000001a9d8df08 start + 6040 (dyldMain.cpp:1450)
+
+Thread 1 name:
+Thread 1:
+0   libsystem_kernel.dylib        	0x00000001d4155ce4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x00000001d415939c mach_msg2_internal + 76 (mach_msg.c:201)
+2   libsystem_kernel.dylib        	0x00000001d41592b8 mach_msg_overwrite + 428 (mach_msg.c:0)
+3   libsystem_kernel.dylib        	0x00000001d4159100 mach_msg + 24 (mach_msg.c:323)
+4   CoreFoundation                	0x00000001832fb7a0 __CFRunLoopServiceMachPort + 160 (CFRunLoop.c:2637)
+5   CoreFoundation                	0x00000001832fa090 __CFRunLoopRun + 1208 (CFRunLoop.c:3021)
+6   CoreFoundation                	0x00000001832fbadc CFRunLoopRunSpecific + 572 (CFRunLoop.c:3434)
+7   Foundation                    	0x0000000181f7279c -[NSRunLoop(NSRunLoop) runMode:beforeDate:] + 212 (NSRunLoop.m:375)
+8   Foundation                    	0x0000000181f78020 -[NSRunLoop(NSRunLoop) runUntilDate:] + 64 (NSRunLoop.m:422)
+9   UIKitCore                     	0x0000000185d0756c -[UIEventFetcher threadMain] + 424 (UIEventFetcher.m:1351)
+10  Foundation                    	0x0000000181fd8804 __NSThread__start__ + 732 (NSThread.m:991)
+11  libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+12  libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 2 name:
+Thread 2:
+0   libsystem_kernel.dylib        	0x00000001d415a0c8 write + 8 (:-1)
+1   FirebaseCrashlytics           	0x000000010d6f5c34 FIRCLSSDKFileLog + 316 (FIRCLSInternalLogging.c:62)
+2   FirebaseCrashlytics           	0x000000010d6f78ec FIRCLSMachExceptionReply + 128 (FIRCLSMachException.c:269)
+3   FirebaseCrashlytics           	0x000000010d6f78ec FIRCLSMachExceptionServer + 976 (FIRCLSMachException.c:180)
+4   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+5   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 3 name:
+Thread 3:
+0   libsystem_kernel.dylib        	0x00000001d4155ce4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x00000001d415939c mach_msg2_internal + 76 (mach_msg.c:201)
+2   libsystem_kernel.dylib        	0x00000001d41592b8 mach_msg_overwrite + 428 (mach_msg.c:0)
+3   libsystem_kernel.dylib        	0x00000001d4159100 mach_msg + 24 (mach_msg.c:323)
+4   CoreFoundation                	0x00000001832fb7a0 __CFRunLoopServiceMachPort + 160 (CFRunLoop.c:2637)
+5   CoreFoundation                	0x00000001832fa090 __CFRunLoopRun + 1208 (CFRunLoop.c:3021)
+6   CoreFoundation                	0x00000001832fbadc CFRunLoopRunSpecific + 572 (CFRunLoop.c:3434)
+7   CFNetwork                     	0x0000000184929db8 +[__CFN_CoreSchedulingSetRunnable _run:] + 416 (CoreSchedulingSet.mm:1473)
+8   Foundation                    	0x0000000181fd8804 __NSThread__start__ + 732 (NSThread.m:991)
+9   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+10  libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 4 name:
+Thread 4:
+0   libsystem_kernel.dylib        	0x00000001d415c768 kevent + 8 (:-1)
+1   NIOPosix                      	0x000000010994c100 @nonobjc kevent(_:_:_:_:_:_:) + 4 (/<compiler-generated>:0)
+2   NIOPosix                      	0x000000010994c100 closure #1 in static KQueue.kevent(kq:changelist:nchanges:eventlist:nevents:timeout:) + 4 (System.swift:654)
+3   NIOPosix                      	0x000000010994c100 specialized syscall<A>(blocking:where:_:) + 4 (System.swift:206)
+4   NIOPosix                      	0x000000010994c100 specialized static KQueue.kevent(kq:changelist:nchanges:eventlist:nevents:timeout:) + 56 (System.swift:653)
+5   NIOPosix                      	0x000000010993d5ac specialized Optional.withUnsafeOptionalPointer<A>(_:) + 152
+6   NIOPosix                      	0x00000001099372dc specialized Selector.whenReady0(strategy:onLoopBegin:_:) + 380 (SelectorKqueue.swift:211)
+7   NIOPosix                      	0x00000001099341dc specialized Selector.whenReady(strategy:onLoopBegin:_:) + 36 (SelectorGeneric.swift:286)
+8   NIOPosix                      	0x00000001099341dc closure #2 in SelectableEventLoop.run() + 36 (SelectableEventLoop.swift:461)
+9   NIOPosix                      	0x00000001099341dc specialized closure #1 in withAutoReleasePool<A>(_:) + 36 (SelectableEventLoop.swift:25)
+10  NIOPosix                      	0x00000001099341dc specialized autoreleasepool<A>(invoking:) + 36 (/<compiler-generated>:0)
+11  NIOPosix                      	0x00000001099341dc specialized withAutoReleasePool<A>(_:) + 36 (SelectableEventLoop.swift:24)
+12  NIOPosix                      	0x00000001099341dc SelectableEventLoop.run() + 524 (SelectableEventLoop.swift:460)
+13  NIOPosix                      	0x0000000109924304 specialized static MultiThreadedEventLoopGroup.runTheLoop(thread:parentGroup:canEventLoopBeShutdownIndividually:selectorFactory:initializer:_:) + 272 (MultiThreadedEventLoopGroup.swift:89)
+14  NIOPosix                      	0x0000000109921a30 specialized static MultiThreadedEventLoopGroup.runTheLoop(thread:parentGroup:canEventLoopBeShutdownIndividually:selectorFactory:initializer:_:) + 40 (MultiThreadedEventLoopGroup.swift:110)
+15  NIOPosix                      	0x0000000109921a30 closure #1 in static MultiThreadedEventLoopGroup.setupThreadAndEventLoop(name:parentGroup:selectorFactory:initializer:) + 136
+16  NIOPosix                      	0x0000000109924f20 partial apply for closure #1 in static MultiThreadedEventLoopGroup.setupThreadAndEventLoop(name:parentGroup:selectorFactory:initializer:) + 36 (/<compiler-generated>:0)
+17  NIOPosix                      	0x0000000109926c9c thunk for @escaping @callee_guaranteed (@guaranteed NIOThread) -> () + 24 (/<compiler-generated>:0)
+18  NIOPosix                      	0x000000010994dc24 closure #1 in static ThreadOpsPosix.run(handle:args:detachThread:) + 216 (ThreadPosix.swift:105)
+19  libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+20  libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 5 name:
+Thread 5:
+0   CoreText                      	0x000000018523f2b8 OTL::GPOS::ApplyPairPosAccelerated(OTL::Lookup const&, TGlyphIterator&) const + 832 (GPOS.cpp:0)
+1   CoreText                      	0x000000018523ed38 TOpenTypePositioningEngine::PositionRuns(SyncState&, KerningStatus&) + 3348 (TOpenTypePositioningEngine.cpp:462)
+2   CoreText                      	0x000000018527d244 TKerningEngine::PositionGlyphs(TRunGlue&, TCharStream const&, signed char) + 616 (TKerningEngine.cpp:111)
+3   CoreText                      	0x000000018527d510 TTypesetter::FinishLayout(std::__1::tuple<TLine const*, TCharStream const*, void const* (*)(__CTRun const*, __CFString const*, void*), void*, std::__1::shared_ptr<TBidiLevelsProvider>*, unsigned in... + 48 (TTypesetter.cpp:536)
+4   CoreText                      	0x0000000185265bb8 TTypesetterAttrString::Initialize(__CFAttributedString const*, bool) + 5332 (TTypesetterAttrString.cpp:259)
+5   CoreText                      	0x0000000185264228 TTypesetterAttrString::TTypesetterAttrString(__CFAttributedString const*, __CFDictionary const*, bool) + 144 (TTypesetterAttrString.cpp:32)
+6   CoreText                      	0x000000018526309c CTLineCreateWithAttributedString + 84 (CTLine.cpp:48)
+7   Driver                        	0x0000000105704da0 gmscore::vector::text::CreateCTLine(std::__1::basic_string<char, std::__1::char_traits<char>, std::__1::allocator<char>> const&, __CTFont const*, float) + 264
+8   Driver                        	0x00000001056af764 gmscore::vector::RenderLineLabel::RenderLineLabel(gmscore::model::LabelGroup const&, std::__1::shared_ptr<gmscore::vector::LabelableFeature> const&, std::__1::basic_string<char, std::__1::char_trai... + 500
+9   Driver                        	0x00000001056af520 gmscore::vector::RenderLineLabel::RenderLineLabel(gmscore::model::LabelGroup const&, std::__1::shared_ptr<gmscore::vector::LabelableFeature> const&, std::__1::basic_string<char, std::__1::char_trai... + 216
+10  Driver                        	0x00000001056af1d4 gmscore::vector::RenderLineLabel::CreateLabel(std::__1::shared_ptr<gmscore::vector::LabelableFeature> const&, GMSLineLabel*, gmscore::model::LabelGroup const&, GMSPolyline2D*, gmscore::base::reffed... + 440
+11  Driver                        	0x0000000105696d7c gmscore::vector::LineLabelableFeature::TryToPlaceLabel(std::__1::shared_ptr<gmscore::vector::LabelableFeature>, gmscore::vector::CandidatePlacementMode, gmscore::vector::LabelPlacementContext*, std... + 948
+12  Driver                        	0x0000000105698350 gmscore::vector::Labeler::ProcessLabelingCandidate(std::__1::shared_ptr<gmscore::vector::LabelableFeature> const&, gmscore::vector::HysteresisCoverageMode) + 240
+13  Driver                        	0x0000000105697964 gmscore::vector::Labeler::ProcessLabelingCandidates() + 472
+14  Driver                        	0x0000000105697644 gmscore::vector::Labeler::RunLabelingPass(std::__1::shared_ptr<gmscore::vector::LabelingJob> const&) + 28
+15  Driver                        	0x000000010569ef7c gmscore::vector::LabelingBehavior::RunLabelingJob(std::__1::shared_ptr<gmscore::vector::LabelingJob> const&) + 328
+16  Driver                        	0x000000010569ecf8 invocation function for block in gmscore::vector::LabelingBehavior::TriggerNewLabelingPass() + 36
+17  Foundation                    	0x0000000181fd9574 __NSThreadPerformPerform + 264 (NSThread.m:1084)
+18  CoreFoundation                	0x00000001832f992c __CFRUNLOOP_IS_CALLING_OUT_TO_A_SOURCE0_PERFORM_FUNCTION__ + 28 (CFRunLoop.c:1970)
+19  CoreFoundation                	0x00000001832f9744 __CFRunLoopDoSource0 + 172 (CFRunLoop.c:2014)
+20  CoreFoundation                	0x00000001832f95a0 __CFRunLoopDoSources0 + 232 (CFRunLoop.c:2051)
+21  CoreFoundation                	0x00000001832f9f20 __CFRunLoopRun + 840 (CFRunLoop.c:2969)
+22  CoreFoundation                	0x00000001832fbadc CFRunLoopRunSpecific + 572 (CFRunLoop.c:3434)
+23  Foundation                    	0x0000000181f7279c -[NSRunLoop(NSRunLoop) runMode:beforeDate:] + 212 (NSRunLoop.m:375)
+24  Driver                        	0x000000010570c98c -[GMSx_GTMSimpleWorkerThread main] + 184
+25  Foundation                    	0x0000000181fd8804 __NSThread__start__ + 732 (NSThread.m:991)
+26  libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+27  libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 6 name:
+Thread 6:
+0   libsystem_kernel.dylib        	0x00000001d4155ce4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x00000001d415939c mach_msg2_internal + 76 (mach_msg.c:201)
+2   libsystem_kernel.dylib        	0x00000001d41592b8 mach_msg_overwrite + 428 (mach_msg.c:0)
+3   libsystem_kernel.dylib        	0x00000001d4159100 mach_msg + 24 (mach_msg.c:323)
+4   CoreFoundation                	0x00000001832fb7a0 __CFRunLoopServiceMachPort + 160 (CFRunLoop.c:2637)
+5   CoreFoundation                	0x00000001832fa090 __CFRunLoopRun + 1208 (CFRunLoop.c:3021)
+6   CoreFoundation                	0x00000001832fbadc CFRunLoopRunSpecific + 572 (CFRunLoop.c:3434)
+7   CoreFoundation                	0x0000000183376514 CFRunLoopRun + 64 (CFRunLoop.c:3460)
+8   CoreMotion                    	0x0000000190acae4c CLMotionCore::runMotionThread(void*) + 1300 (CLMotionCore.mm:376)
+9   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+10  libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 7 name:
+Thread 7:
+0   libsystem_kernel.dylib        	0x00000001d4155c60 semaphore_wait_trap + 8 (:-1)
+1   caulk                         	0x0000000210c119e4 caulk::semaphore::timed_wait(double) + 224 (semaphore.cpp:98)
+2   caulk                         	0x0000000210c10020 caulk::concurrent::details::worker_thread::run() + 32 (messenger.cpp:236)
+3   caulk                         	0x0000000210c26ee0 void* caulk::thread_proxy<std::__1::tuple<caulk::thread::attributes, void (caulk::concurrent::details::worker_thread::*)(), std::__1::tuple<caulk::concurrent::details::worker_thread*>>>(void*) + 96 (thread.h:197)
+4   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+5   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 8 name:
+Thread 8:
+0   libsystem_kernel.dylib        	0x00000001d4155c60 semaphore_wait_trap + 8 (:-1)
+1   caulk                         	0x0000000210c119e4 caulk::semaphore::timed_wait(double) + 224 (semaphore.cpp:98)
+2   caulk                         	0x0000000210c10020 caulk::concurrent::details::worker_thread::run() + 32 (messenger.cpp:236)
+3   caulk                         	0x0000000210c26ee0 void* caulk::thread_proxy<std::__1::tuple<caulk::thread::attributes, void (caulk::concurrent::details::worker_thread::*)(), std::__1::tuple<caulk::concurrent::details::worker_thread*>>>(void*) + 96 (thread.h:197)
+4   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+5   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 9 name:
+Thread 9:
+0   libsystem_kernel.dylib        	0x00000001d4155c60 semaphore_wait_trap + 8 (:-1)
+1   caulk                         	0x0000000210c119e4 caulk::semaphore::timed_wait(double) + 224 (semaphore.cpp:98)
+2   caulk                         	0x0000000210c10020 caulk::concurrent::details::worker_thread::run() + 32 (messenger.cpp:236)
+3   caulk                         	0x0000000210c26ee0 void* caulk::thread_proxy<std::__1::tuple<caulk::thread::attributes, void (caulk::concurrent::details::worker_thread::*)(), std::__1::tuple<caulk::concurrent::details::worker_thread*>>>(void*) + 96 (thread.h:197)
+4   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+5   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 10:
+0   libsystem_pthread.dylib       	0x000000020d784aa4 start_wqthread + 0 (:-1)
+
+Thread 11 name:
+Thread 11:
+0   libobjc.A.dylib               	0x0000000180873b88 <deduplicated_symbol> + 4 (:-1)
+1   libboringssl.dylib            	0x00000001ba9c3b0c boringssl_helper_copy_certificates_from_CRYPTO_BUFFERs + 228 (boringssl_helper.m:164)
+2   libboringssl.dylib            	0x00000001ba9c1b2c boringssl_session_set_peer_verification_state_from_session + 160 (boringssl_session.m:473)
+3   libboringssl.dylib            	0x00000001ba9c15d4 boringssl_context_certificate_verify_callback + 504 (boringssl_context.m:2009)
+4   libboringssl.dylib            	0x00000001ba9bf598 bssl::ssl_verify_peer_cert(bssl::SSL_HANDSHAKE*) + 372 (handshake.cc:373)
+5   libboringssl.dylib            	0x00000001ba9b0a28 bssl::tls13_client_handshake(bssl::SSL_HANDSHAKE*) + 1460 (tls13_client.cc:1075)
+6   libboringssl.dylib            	0x00000001ba99b0c0 bssl::ssl_client_handshake(bssl::SSL_HANDSHAKE*) + 1024 (handshake_client.cc:2031)
+7   libboringssl.dylib            	0x00000001ba99da08 bssl::ssl_run_handshake(bssl::SSL_HANDSHAKE*, bool*) + 376 (handshake.cc:747)
+8   libboringssl.dylib            	0x00000001ba99df84 SSL_do_handshake + 80 (ssl_lib.cc:889)
+9   libboringssl.dylib            	0x00000001ba9aa828 boringssl_session_handshake_continue_inner + 112 (boringssl_session.m:209)
+10  libboringssl.dylib            	0x00000001ba99e3ec nw_protocol_boringssl_handshake_negotiate + 76 (protocol_boringssl.m:812)
+11  libboringssl.dylib            	0x00000001ba9a6c3c nw_boringssl_read + 3172 (protocol_boringssl.m:708)
+12  libboringssl.dylib            	0x00000001ba9a4bfc nw_protocol_boringssl_input_available + 312 (protocol_boringssl.m:1522)
+13  Network                       	0x0000000183a4e748 nw_protocol_input_available + 160 (protocol.cpp:479)
+14  libusrtcp.dylib               	0x0000000214ab49e4 nw_protocol_tcp_wake_read + 408 (protocol_tcp.c:330)
+15  libusrtcp.dylib               	0x0000000214abd9ac nw_protocol_tcp_input_flush + 104 (protocol_tcp.c:2095)
+16  Network                       	0x0000000183a48d7c nw_channel_add_input_frames(nw_channel*, nw_protocol*) + 8612 (channel.cpp:1400)
+17  Network                       	0x0000000183a54684 nw_channel_update_input_source(nw_channel*, nw_protocol*, bool) + 300 (channel.cpp:1491)
+18  Network                       	0x0000000183a46ae8 invocation function for block in nw_channel_create(nw_context*, unsigned char*, unsigned int, void*, unsigned int, bool, bool, bool*) + 76 (channel.cpp:2585)
+19  libdispatch.dylib             	0x000000018b2a0584 _dispatch_client_callout + 16 (client_callout.mm:85)
+20  libdispatch.dylib             	0x000000018b28b560 _dispatch_continuation_pop + 596 (queue.c:325)
+21  libdispatch.dylib             	0x000000018b29e348 _dispatch_source_latch_and_call + 396 (source.c:601)
+22  libdispatch.dylib             	0x000000018b29d020 _dispatch_source_invoke + 844 (source.c:966)
+23  libdispatch.dylib             	0x000000018b2910f0 _dispatch_workloop_invoke + 1612 (queue.c:4709)
+24  libdispatch.dylib             	0x000000018b29a1dc _dispatch_root_queue_drain_deferred_wlh + 292 (queue.c:7198)
+25  libdispatch.dylib             	0x000000018b299a60 _dispatch_workloop_worker_thread + 540 (queue.c:6792)
+26  libsystem_pthread.dylib       	0x000000020d784a0c _pthread_wqthread + 292 (pthread.c:2696)
+27  libsystem_pthread.dylib       	0x000000020d784aac start_wqthread + 8 (:-1)
+
+Thread 12 name:
+Thread 12:
+0   MediaRemote                   	0x000000019572bfcc -[_MRAVOutputDeviceDescriptorProtobuf clusterType] + 0 (_MRAVOutputDeviceDescriptorProtobuf.m:530)
+1   MediaRemote                   	0x0000000195758b48 -[MRAVOutputDevice isEqualFuzzy:] + 76 (MRAVOutputDevice.m:372)
+2   MediaRemote                   	0x000000019574d42c -[MRAVOutputContext _compareOutputDeviceList:withNewOutputDeviceList:] + 304 (MRAVOutputContext.m:301)
+3   MediaRemote                   	0x000000019574d060 -[MRAVOutputContext _reloadWithOutputDevices:] + 300 (MRAVOutputContext.m:286)
+4   MediaRemote                   	0x0000000195733e08 -[MRAVConcreteOutputContext _reloadOutputDevices] + 340 (MRAVConcreteOutputContext.m:1011)
+5   libdispatch.dylib             	0x000000018b286aac _dispatch_call_block_and_release + 32 (init.c:1575)
+6   libdispatch.dylib             	0x000000018b2a0584 _dispatch_client_callout + 16 (client_callout.mm:85)
+7   libdispatch.dylib             	0x000000018b28f2d0 _dispatch_lane_serial_drain + 740 (queue.c:3939)
+8   libdispatch.dylib             	0x000000018b28fde0 _dispatch_lane_invoke + 440 (queue.c:4030)
+9   libdispatch.dylib             	0x000000018b29a1dc _dispatch_root_queue_drain_deferred_wlh + 292 (queue.c:7198)
+10  libdispatch.dylib             	0x000000018b299a60 _dispatch_workloop_worker_thread + 540 (queue.c:6792)
+11  libsystem_pthread.dylib       	0x000000020d784a0c _pthread_wqthread + 292 (pthread.c:2696)
+12  libsystem_pthread.dylib       	0x000000020d784aac start_wqthread + 8 (:-1)
+
+Thread 13 name:
+Thread 13 Crashed:
+0   WebRTC                        	0x000000010b21a230 0x10aa1c000 + 8380976
+1   WebRTC                        	0x000000010b13b4c8 0x10aa1c000 + 7468232
+2   WebRTC                        	0x000000010abb9e58 0x10aa1c000 + 1695320
+3   WebRTC                        	0x000000010abb909c 0x10aa1c000 + 1691804
+4   WebRTC                        	0x000000010abba2f8 0x10aa1c000 + 1696504
+5   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+6   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 14 name:
+Thread 14:
+0   libsystem_kernel.dylib        	0x00000001d415b438 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x000000020d785e50 _pthread_cond_wait + 984 (pthread_cond.c:862)
+2   WebRTC                        	0x000000010abbdcec 0x10aa1c000 + 1711340
+3   WebRTC                        	0x000000010b1cd58c 0x10aa1c000 + 8066444
+4   CiCareSDKCall                 	0x0000000106dfe500 WebRTCManager.close() + 68 (WebRTCManager.swift:219)
+5   CiCareSDKCall                 	0x0000000106dfe500 SocketSignaling.releaseWebrtc() + 136 (SocketSignaling.swift:450)
+6   CiCareSDKCall                 	0x0000000106dd933c closure #1 in CallManager.endedCall(uuid:callState:) + 772 (CallManager.swift:569)
+7   CiCareSDKCall                 	0x0000000106ddb170 closure #1 in CallManager.requestTransaction(transaction:completion:) + 12 (CallManager.swift:0)
+8   CiCareSDKCall                 	0x0000000106ddb170 partial apply for closure #1 in CallManager.requestTransaction(transaction:completion:) + 28 (/<compiler-generated>:0)
+9   CiCareSDKCall                 	0x0000000106e006f0 thunk for @escaping @callee_guaranteed (@guaranteed Error?) -> () + 52 (/<compiler-generated>:0)
+10  libdispatch.dylib             	0x000000018b286aac _dispatch_call_block_and_release + 32 (init.c:1575)
+11  libdispatch.dylib             	0x000000018b2a0584 _dispatch_client_callout + 16 (client_callout.mm:85)
+12  libdispatch.dylib             	0x000000018b28f2d0 _dispatch_lane_serial_drain + 740 (queue.c:3939)
+13  libdispatch.dylib             	0x000000018b28fdac _dispatch_lane_invoke + 388 (queue.c:4030)
+14  libdispatch.dylib             	0x000000018b29a1dc _dispatch_root_queue_drain_deferred_wlh + 292 (queue.c:7198)
+15  libdispatch.dylib             	0x000000018b299a60 _dispatch_workloop_worker_thread + 540 (queue.c:6792)
+16  libsystem_pthread.dylib       	0x000000020d784a0c _pthread_wqthread + 292 (pthread.c:2696)
+17  libsystem_pthread.dylib       	0x000000020d784aac start_wqthread + 8 (:-1)
+
+Thread 15:
+0   libsystem_pthread.dylib       	0x000000020d784aa4 start_wqthread + 0 (:-1)
+
+Thread 16:
+0   libsystem_pthread.dylib       	0x000000020d784aa4 start_wqthread + 0 (:-1)
+
+Thread 17 name:
+Thread 17:
+0   libsystem_kernel.dylib        	0x00000001d4169e78 poll + 8 (:-1)
+1   WebRTC                        	0x000000010abb71dc 0x10aa1c000 + 1683932
+2   WebRTC                        	0x000000010abb700c 0x10aa1c000 + 1683468
+3   WebRTC                        	0x000000010abb9a28 0x10aa1c000 + 1694248
+4   WebRTC                        	0x000000010abb9068 0x10aa1c000 + 1691752
+5   WebRTC                        	0x000000010abba2f8 0x10aa1c000 + 1696504
+6   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+7   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 18 name:
+Thread 18:
+0   libsystem_kernel.dylib        	0x00000001d415b438 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x000000020d785e50 _pthread_cond_wait + 984 (pthread_cond.c:862)
+2   WebRTC                        	0x000000010abbdda4 0x10aa1c000 + 1711524
+3   WebRTC                        	0x000000010abc1dbc 0x10aa1c000 + 1727932
+4   WebRTC                        	0x000000010abb9a28 0x10aa1c000 + 1694248
+5   WebRTC                        	0x000000010abb9068 0x10aa1c000 + 1691752
+6   WebRTC                        	0x000000010abba2f8 0x10aa1c000 + 1696504
+7   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+8   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 19 name:
+Thread 19:
+0   libsystem_kernel.dylib        	0x00000001d415b438 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x000000020d785e50 _pthread_cond_wait + 984 (pthread_cond.c:862)
+2   WebRTC                        	0x000000010abbdda4 0x10aa1c000 + 1711524
+3   WebRTC                        	0x000000010abc1dbc 0x10aa1c000 + 1727932
+4   WebRTC                        	0x000000010abb9a28 0x10aa1c000 + 1694248
+5   WebRTC                        	0x000000010abb9068 0x10aa1c000 + 1691752
+6   WebRTC                        	0x000000010abba2f8 0x10aa1c000 + 1696504
+7   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+8   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 20 name:
+Thread 20 name:
+Thread 20:
+0   libsystem_kernel.dylib        	0x00000001d4155ce4 mach_msg2_trap + 8 (:-1)
+1   libsystem_kernel.dylib        	0x00000001d415939c mach_msg2_internal + 76 (mach_msg.c:201)
+2   libsystem_kernel.dylib        	0x00000001d41592b8 mach_msg_overwrite + 428 (mach_msg.c:0)
+3   libsystem_kernel.dylib        	0x00000001d4159100 mach_msg + 24 (mach_msg.c:323)
+4   libdispatch.dylib             	0x000000018b2a1c08 _dispatch_mach_send_and_wait_for_reply + 548 (mach.c:1997)
+5   libdispatch.dylib             	0x000000018b2a1fa8 dispatch_mach_send_with_result_and_wait_for_reply + 60 (mach.c:2034)
+6   libxpc.dylib                  	0x000000020d7df7f0 xpc_connection_send_message_with_reply_sync + 256 (connection.c:4111)
+7   Foundation                    	0x0000000181fbe9b0 __NSXPCCONNECTION_IS_WAITING_FOR_A_SYNCHRONOUS_REPLY__ + 16 (NSXPCConnection.m:223)
+8   Foundation                    	0x0000000181f7988c -[NSXPCConnection _sendInvocation:orArguments:count:methodSignature:selector:withProxy:] + 2100 (NSXPCConnection.m:1673)
+9   CoreFoundation                	0x00000001833186cc ___forwarding___ + 996 (NSForwarding.m:3646)
+10  CoreFoundation                	0x0000000183318940 _CF_forwarding_prep_0 + 96 (:-1)
+11  AudioSession                  	0x00000001a25b9500 as::client::api_utils::ServerAccessor::GetBatchPropertiesMX(NSArray<NSString*>*, NSDictionary<NSString*, NSNumber*>* __autoreleasing*) const + 304 (SessionAPIUtilities.mm:226)
+12  AudioSession                  	0x00000001a25b9920 -[AVAudioSession(GenericPipe) getMXProperties:propertyErrors:] + 88 (AVAudioSessionClient_Common.mm:702)
+13  AudioSession                  	0x00000001a25c8f94 as::client::cache_util::CacheManager::refreshCachedProperties(AVAudioSession*) + 144 (AVAudioSessionCachingUtils.mm:301)
+14  AudioSession                  	0x00000001a25cc46c (anonymous namespace)::HandleRouteChange(AVAudioSession*, NSDictionary*, std::__1::shared_ptr<as::client::api_utils::ServerAccessor const>&) + 1164 (AVAudioSession_iOS.mm:480)
+15  AudioSession                  	0x00000001a25b0d38 -[AVAudioSession handleDeferredMessage:userInfo:] + 500 (AVAudioSession_iOS.mm:804)
+16  AudioSession                  	0x00000001a25af4a0 -[AVAudioSession(ClientCommonImplementation) privateHandlePing] + 772 (AVAudioSessionClient_Common.mm:154)
+17  AudioSession                  	0x00000001a25af164 __66-[AVAudioSession(ClientCommonImplementation) privateDispatchPing:]_block_invoke + 44 (AVAudioSessionClient_Common.mm:174)
+18  libdispatch.dylib             	0x000000018b286aac _dispatch_call_block_and_release + 32 (init.c:1575)
+19  libdispatch.dylib             	0x000000018b2a0584 _dispatch_client_callout + 16 (client_callout.mm:85)
+20  libdispatch.dylib             	0x000000018b28f2d0 _dispatch_lane_serial_drain + 740 (queue.c:3939)
+21  libdispatch.dylib             	0x000000018b28fde0 _dispatch_lane_invoke + 440 (queue.c:4030)
+22  libdispatch.dylib             	0x000000018b298db0 _dispatch_root_queue_drain + 364 (queue.c:7342)
+23  libdispatch.dylib             	0x000000018b298b70 _dispatch_worker_thread + 268 (queue.c:7517)
+24  libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+25  libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 21 name:
+Thread 21:
+0   libsystem_kernel.dylib        	0x00000001d4155c78 semaphore_timedwait_trap + 8 (:-1)
+1   libdispatch.dylib             	0x000000018b2bb1c0 _dispatch_sema4_timedwait + 64 (lock.c:154)
+2   libdispatch.dylib             	0x000000018b288e58 _dispatch_semaphore_wait_slow + 76 (semaphore.c:116)
+3   libdispatch.dylib             	0x000000018b298ba8 _dispatch_worker_thread + 324 (queue.c:7520)
+4   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+5   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 22 name:
+Thread 22:
+0   libsystem_kernel.dylib        	0x00000001d4155c78 semaphore_timedwait_trap + 8 (:-1)
+1   libdispatch.dylib             	0x000000018b2bb1c0 _dispatch_sema4_timedwait + 64 (lock.c:154)
+2   libdispatch.dylib             	0x000000018b288e58 _dispatch_semaphore_wait_slow + 76 (semaphore.c:116)
+3   libdispatch.dylib             	0x000000018b298ba8 _dispatch_worker_thread + 324 (queue.c:7520)
+4   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+5   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 23:
+0   libsystem_pthread.dylib       	0x000000020d784aa4 start_wqthread + 0 (:-1)
+
+Thread 24:
+0   libsystem_pthread.dylib       	0x000000020d784aa4 start_wqthread + 0 (:-1)
+
+Thread 25 name:
+Thread 25:
+0   libsystem_kernel.dylib        	0x00000001d415b438 __psynch_cvwait + 8 (:-1)
+1   libsystem_pthread.dylib       	0x000000020d785e50 _pthread_cond_wait + 984 (pthread_cond.c:862)
+2   JavaScriptCore                	0x000000019a8ad1b4 scavenger_thread_main + 1584 (pas_scavenger.c:347)
+3   libsystem_pthread.dylib       	0x000000020d787344 _pthread_start + 136 (pthread.c:931)
+4   libsystem_pthread.dylib       	0x000000020d784ab8 thread_start + 8 (:-1)
+
+Thread 26:
+0   libsystem_pthread.dylib       	0x000000020d784aa4 start_wqthread + 0 (:-1)
+
+Thread 27:
+0   libsystem_pthread.dylib       	0x000000020d784aa4 start_wqthread + 0 (:-1)
+
+Thread 28:
+0   libsystem_pthread.dylib       	0x000000020d784aa4 start_wqthread + 0 (:-1)
+
+Thread 29:
+0   libsystem_pthread.dylib       	0x000000020d784aa4 start_wqthread + 0 (:-1)
+
+
+Thread 13 crashed with ARM Thread State (64-bit):
+    x0: 0x000000010b21a220   x1: 0xffffffffb0000000   x2: 0x0000000000000058   x3: 0xfffff0007fc00000
+    x4: 0x0000000151d1d880   x5: 0x004f8900004f8a00   x6: 0x000000014d1c4700   x7: 0x000000003b9ac618
+    x8: 0xeeed07927549e91a   x9: 0x00000000effd7e7f  x10: 0x0000000000000000  x11: 0x0000000000000000
+   x12: 0x15ff37f910028180  x13: 0x15ff27f890027960  x14: 0x0000000000028000  x15: 0x000000000000000e
+   x16: 0x952d000151d1d800  x17: 0x0000000ff27f8960  x18: 0x0000000000000000  x19: 0x0000000152172800
+   x20: 0x000000016b6eef10  x21: 0x000000010b4f2000  x22: 0x000000010b48a000  x23: 0x000000014f458040
+   x24: 0x000000010aa22614  x25: 0x0000000000000000  x26: 0x0000000000000001  x27: 0x0000000000000000
+   x28: 0x0000000000000000   fp: 0x000000016b6eee50   lr: 0x000000010b21a220
+    sp: 0x000000016b6eedd0   pc: 0x000000010b21a230        cpsr: 0x0
+   esr: 0x92000004 (Data Abort) byte read Translation fault
+
+
+Binary Images:
+        0x104d14000 -         0x10663ffff Driver arm64  <52b88905300e371e9dbe3ff200e63273> /var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Driver
+        0x106d10000 -         0x106d17fff CGRPCZlib arm64  <c29a3edcb90d3123afbc0cbd7d69d98a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CGRPCZlib.framework/CGRPCZlib
+        0x106d28000 -         0x106d2ffff CNIOAtomics arm64  <1382cee16ddb30ee89d72eb360ff56f4> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CNIOAtomics.framework/CNIOAtomics
+        0x106d4c000 -         0x106d53fff CNIOBoringSSLShims arm64  <d052cd93644335a0962235acaed9d0d2> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CNIOBoringSSLShims.framework/CNIOBoringSSLShims
+        0x106d64000 -         0x106d6bfff CNIODarwin arm64  <4a541476388838f09465d191dbe7ea40> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CNIODarwin.framework/CNIODarwin
+        0x106d7c000 -         0x106d87fff CNIOHTTPParser arm64  <f71513a44cb1316b85b23da01fc331df> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CNIOHTTPParser.framework/CNIOHTTPParser
+        0x106d98000 -         0x106d9ffff CNIOLinux arm64  <c20122b4ce8c3117be4d0db243c23c8b> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CNIOLinux.framework/CNIOLinux
+        0x106db0000 -         0x106db7fff CNIOWindows arm64  <2773bd475d3e349bacfaa8ea003924a7> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CNIOWindows.framework/CNIOWindows
+        0x106dc8000 -         0x106e13fff CiCareSDKCall arm64  <10ea8f0eaefa3edc925ad1a56dc5e8f2> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CiCareSDKCall.framework/CiCareSDKCall
+        0x106e7c000 -         0x106e83fff CleverTapLocation arm64  <119c5275d8723da4b4856573ce9fdee7> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CleverTapLocation.framework/CleverTapLocation
+        0x106f38000 -         0x106f4bfff CleverTapGeofence arm64  <5f20aaa1668f3bca8785151b6f45eaa3> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CleverTapGeofence.framework/CleverTapGeofence
+        0x1071ec000 -         0x1078ebfff build-info arm64  <19b9f437da2037288f9490de7834fa80> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/build-info.framework/build-info
+        0x107964000 -         0x107a8ffff CNIOBoringSSL arm64  <1391779be9333234a4e65165d0d72187> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CNIOBoringSSL.framework/CNIOBoringSSL
+        0x107bac000 -         0x107c93fff CleverTapSDK arm64  <0397a8b7ced03d94a13099321981af24> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CleverTapSDK.framework/CleverTapSDK
+        0x107dcc000 -         0x107df3fff CocoaAsyncSocket arm64  <8547384b1cba30f8873f67aaa4142fe4> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CocoaAsyncSocket.framework/CocoaAsyncSocket
+        0x107e28000 -         0x107ea7fff CryptoSwift arm64  <cf809c1702f938978c4ab6a8c15e2403> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/CryptoSwift.framework/CryptoSwift
+        0x107f84000 -         0x107fe3fff DKImagePickerController arm64  <7e1a19853a6c3eb49245b6cd23ec5d01> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/DKImagePickerController.framework/DKImagePickerController
+        0x10809c000 -         0x1080e7fff DKPhotoGallery arm64  <cf43802524d93b49b6b0beb36b3036d3> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/DKPhotoGallery.framework/DKPhotoGallery
+        0x108170000 -         0x10817ffff Device arm64  <3af390c2293530e1bff8ba7c44bef2f2> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Device.framework/Device
+        0x108198000 -         0x1081affff DeviceKit arm64  <f9c9c50007e03fa5babf1030b713c65d> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/DeviceKit.framework/DeviceKit
+        0x1081e0000 -         0x1081effff FBLPromises arm64  <c38396d741143adc8f7166ac3fefa877> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FBLPromises.framework/FBLPromises
+        0x108210000 -         0x108abbfff Flutter arm64  <4c4c44b955553144a15a9180e0681533> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Flutter.framework/Flutter
+        0x108bb4000 -         0x108c93fff GRPC arm64  <5d10447366663a2b8cbb8707c322c45f> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/GRPC.framework/GRPC
+        0x108e80000 -         0x108e93fff IKEventSource arm64  <eea4c89f876332188e3c456e3cbd3533> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/IKEventSource.framework/IKEventSource
+        0x108eb8000 -         0x108ecbfff Logging arm64  <2a5f079c3ab63fd0a6d2d03f61d40e6a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Logging.framework/Logging
+        0x108ef8000 -         0x109097fff Lottie arm64  <24fe1e8bdce133d8984bb91845c55094> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Lottie.framework/Lottie
+        0x109378000 -         0x10937ffff NIO arm64  <80da993f690b3e69a776c18d7bb51aad> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIO.framework/NIO
+        0x109394000 -         0x1093a3fff NIOConcurrencyHelpers arm64  <df56bd650d2630978ab999fb7248c46f> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOConcurrencyHelpers.framework/NIOConcurrencyHelpers
+        0x1093f4000 -         0x10945ffff NIOCore arm64  <479e51dc70e932b29437ca6023c1f136> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOCore.framework/NIOCore
+        0x109554000 -         0x109567fff NIOEmbedded arm64  <61cebe102ccf3952b56e35d6b9495fb0> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOEmbedded.framework/NIOEmbedded
+        0x109594000 -         0x1095b7fff NIOExtras arm64  <7eff3447794a31aea392a30c1ce66890> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOExtras.framework/NIOExtras
+        0x10960c000 -         0x109617fff NIOFoundationCompat arm64  <30f9d72e15ff38bfaac4a23e6898ec0d> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOFoundationCompat.framework/NIOFoundationCompat
+        0x109634000 -         0x10965bfff NIOHPACK arm64  <905d141880a73ff2ab979a62dd98bb5e> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOHPACK.framework/NIOHPACK
+        0x1096a4000 -         0x1096e3fff NIOHTTP1 arm64  <278071aa29b836eeacd423076a42a25c> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOHTTP1.framework/NIOHTTP1
+        0x10975c000 -         0x1097e7fff NIOHTTP2 arm64  <f043e517f21f3192bc5c60dbbdfa0223> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOHTTP2.framework/NIOHTTP2
+        0x1098fc000 -         0x109963fff NIOPosix arm64  <cb103364e27d3d77a9226b740a758d84> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOPosix.framework/NIOPosix
+        0x109a24000 -         0x109a5ffff NIOSSL arm64  <5bd2706df70a39dbad256444bd5fb903> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOSSL.framework/NIOSSL
+        0x109ae4000 -         0x109aeffff NIOTLS arm64  <09b5b7ee77fd3c909da5223218075076> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOTLS.framework/NIOTLS
+        0x109b0c000 -         0x109b43fff NIOTransportServices arm64  <53ac89fd72b03a9f97f284206c2a5cf1> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NIOTransportServices.framework/NIOTransportServices
+        0x109bbc000 -         0x109bc3fff NSObject_Rx arm64  <18d078fc7c7b3cfdbe4e8ed10e277b8c> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NSObject_Rx.framework/NSObject_Rx
+        0x109bd8000 -         0x109d93fff OpenSSL arm64  <392f81ff55f730b2b9114961292f3e3d> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/OpenSSL.framework/OpenSSL
+        0x109e50000 -         0x109e5ffff OrderedSet arm64  <87baa91bf2e931ab9c695a87ff427442> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/OrderedSet.framework/OrderedSet
+        0x109e7c000 -         0x109e87fff Polyline arm64  <309608aa221d3ea78d23f58bdcae58b2> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Polyline.framework/Polyline
+        0x109ea0000 -         0x109eb3fff Promises arm64  <58845ee1f7a530eea1ab597ee07ed5b0> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Promises.framework/Promises
+        0x109ed8000 -         0x109edffff RecaptchaInterop arm64  <7a1b09faec7535e2a02f162e6e077717> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/RecaptchaInterop.framework/RecaptchaInterop
+        0x109ef0000 -         0x109f2ffff SocketIO arm64  <d7b565f3afd430e8981b30f5e2b6d906> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/SocketIO.framework/SocketIO
+        0x109f9c000 -         0x10a0bffff SwiftProtobuf arm64  <098af1503e4137779ac4e28462e78e15> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/SwiftProtobuf.framework/SwiftProtobuf
+        0x10a30c000 -         0x10a323fff SwiftyGif arm64  <c9bb216eded238718cc8d7e872fc2fcb> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/SwiftyGif.framework/SwiftyGif
+        0x10a34c000 -         0x10a357fff Toast arm64  <ab2d083b45123853af6f5fca5c598fd3> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Toast.framework/Toast
+        0x10a36c000 -         0x10a83ffff VBotPhoneSDK arm64  <2f365668625832ccb85de0376e81eef4> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/VBotPhoneSDK.framework/VBotPhoneSDK
+        0x10aa1c000 -         0x10b42bfff WebRTC arm64  <4c4c44fb55553144a131c5d2011a1490> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/WebRTC.framework/WebRTC
+        0x10b57c000 -         0x10b587fff _NIODataStructures arm64  <79650fb9a9d43a35a61dc6c4afe8b391> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/_NIODataStructures.framework/_NIODataStructures
+        0x10b5a0000 -         0x10b5abfff connectivity_plus arm64  <185f93b2c48731f8997158ab042ed929> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/connectivity_plus.framework/connectivity_plus
+        0x10b5c8000 -         0x10b5d3fff device_info_plus arm64  <5f9d989765183c03b66009ea7fc6bc51> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/device_info_plus.framework/device_info_plus
+        0x10b5e4000 -         0x10b5f3fff file_picker arm64  <a80e24d3fe6233bca1789ef1e3a6551c> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/file_picker.framework/file_picker
+        0x10b60c000 -         0x10b617fff flutter_bshield_callback arm64  <1ba54cb528f535b79f4a7c4024615c58> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/flutter_bshield_callback.framework/flutter_bshield_callback
+        0x10b630000 -         0x10b717fff flutter_inappwebview_ios arm64  <bca681e2b55130c8843cf2336927cda9> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/flutter_inappwebview_ios.framework/flutter_inappwebview_ios
+        0x10b88c000 -         0x10b893fff fluttertoast arm64  <38bb4aa525863a6394c9a2d6aeb32a21> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/fluttertoast.framework/fluttertoast
+        0x10b8a4000 -         0x10b8b3fff geolocator_apple arm64  <c76580f4764039fd8473d60f8372e730> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/geolocator_apple.framework/geolocator_apple
+        0x10b8d0000 -         0x10b8e3fff image_picker_ios arm64  <c5120d5c9114343d8a06e85c7ed03c86> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/image_picker_ios.framework/image_picker_ios
+        0x10b904000 -         0x10b90bfff package_info_plus arm64  <5a047ead15c93f3f8c793612a6ff6a17> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/package_info_plus.framework/package_info_plus
+        0x10b91c000 -         0x10b927fff share_plus arm64  <95a73afa0801362ea23e6b1a731046f6> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/share_plus.framework/share_plus
+        0x10b93c000 -         0x10b957fff sqflite_darwin arm64  <a6c1722ba4c33154808f1fffa0ea6317> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/sqflite_darwin.framework/sqflite_darwin
+        0x10b984000 -         0x10b993fff url_launcher_ios arm64  <e94a55d8941635978bc2fc8e4562040a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/url_launcher_ios.framework/url_launcher_ios
+        0x10b9b8000 -         0x10b9c7fff vibration arm64  <e3bd567484863bb6946c3a7303f20d6e> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/vibration.framework/vibration
+        0x10b9e0000 -         0x10b9f3fff video_player_avfoundation arm64  <d882a6bb93783ab6838c45ad4f570956> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/video_player_avfoundation.framework/video_player_avfoundation
+        0x10ba1c000 -         0x10ba27fff MDHome arm64  <6d8bf8f7b5b532a6b6dd419f9fe5cba9> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDHome.framework/MDHome
+        0x10ba3c000 -         0x10ba93fff libwebp arm64  <09a54cdb22ba31bd9c5ee7fc68a23695> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/libwebp.framework/libwebp
+        0x10badc000 -         0x10baf3fff H3 arm64  <72c732b7b0b13ddf8c8611ddfa208cfc> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/H3.framework/H3
+        0x10bb08000 -         0x10bb33fff MDUtils arm64  <2c43bf98fcf13cf2adc521691c1ded49> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDUtils.framework/MDUtils
+        0x10bb58000 -         0x10bb67fff syncfusion_flutter_pdfviewer arm64  <f07ebb6e80213f03bd931ba54a3bcd3a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/syncfusion_flutter_pdfviewer.framework/syncfusion_flutter_pdfviewer
+        0x10bb80000 -         0x10bb87fff geocoding_ios arm64  <7c1b10b92a49363d918dbcf48111c8cf> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/geocoding_ios.framework/geocoding_ios
+        0x10bb98000 -         0x10bc57fff MDCUIs arm64  <985d8f1b01903998a38210ce9c5b5954> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDCUIs.framework/MDCUIs
+        0x10bcd4000 -         0x10bce7fff flutter_secure_storage arm64  <e3b7da3c413b38bcab237852f3d2f809> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/flutter_secure_storage.framework/flutter_secure_storage
+        0x10bd04000 -         0x10bd1ffff mini_app_core arm64  <09894155d4e937fba96f4d20cdc9cf3b> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/mini_app_core.framework/mini_app_core
+        0x10bd48000 -         0x10bd4ffff MDeKYC arm64  <f20319047dc434ecbea967f664ef5374> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDeKYC.framework/MDeKYC
+        0x10bd60000 -         0x10bd6bfff platform_device_id_plus arm64  <9f76b14eb4e5325c990e90160e4c6cbb> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/platform_device_id_plus.framework/platform_device_id_plus
+        0x10bd7c000 -         0x10bd97fff flutter_image_compress_common arm64  <0deaad5573403646bc03672bb1019359> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/flutter_image_compress_common.framework/flutter_image_compress_common
+        0x10bddc000 -         0x10bde3fff MDOrderBusiness arm64  <fd1869e21f353e5784a3ecb8b3a3f4ea> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDOrderBusiness.framework/MDOrderBusiness
+        0x10bdf4000 -         0x10bdfbfff MDProfile arm64  <90da3a0f016b3abb9fb36a6e391be001> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDProfile.framework/MDProfile
+        0x10be0c000 -         0x10be3ffff camera_avfoundation arm64  <eb31aa7035333f3aa2b84a4bca07ae5c> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/camera_avfoundation.framework/camera_avfoundation
+        0x10bea8000 -         0x10becbfff MDCore arm64  <38a7a9fe071d3c47b5591992c321773d> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDCore.framework/MDCore
+        0x10bef0000 -         0x10bf0bfff MDStorage arm64  <0121a3729d0b3bbeba745f7e83679be0> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDStorage.framework/MDStorage
+        0x10bf24000 -         0x10bf2bfff MDBroadcasting arm64  <1874e99ade8d3a6486a88d9b197ba96b> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDBroadcasting.framework/MDBroadcasting
+        0x10bf3c000 -         0x10bf7bfff MDModels arm64  <bf3a3bd3f3223c189ac3c1a8bde9be9a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDModels.framework/MDModels
+        0x10bfbc000 -         0x10bfc7fff path_provider_foundation arm64  <95abeba90bc63111a6233530405f29ff> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/path_provider_foundation.framework/path_provider_foundation
+        0x10bfe0000 -         0x10bff3fff Mantle arm64  <886a1af548213c7d9f625895dd591b90> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Mantle.framework/Mantle
+        0x10c00c000 -         0x10c01ffff shared_preferences_foundation arm64  <f91ca75a23a9341896cc7b682cf495ff> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/shared_preferences_foundation.framework/shared_preferences_foundation
+        0x10c040000 -         0x10c04bfff SDWebImageWebPCoder arm64  <51830287726930629211c771e378789a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/SDWebImageWebPCoder.framework/SDWebImageWebPCoder
+        0x10c060000 -         0x10c073fff MDAPILayer arm64  <a3a30e1cc2fc320b85417ade68b81504> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDAPILayer.framework/MDAPILayer
+        0x10c08c000 -         0x10d07bfff App arm64  <cd384129a16332f9b995b22accc61a23> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/App.framework/App
+        0x10d0fc000 -         0x10d107fff location arm64  <4bd5ef40eecc38469d7b75b98c657be0> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/location.framework/location
+        0x10d118000 -         0x10d11ffff MDMap arm64  <ddaa5cafb4e43bb9b8ab7af77dd797d5> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MDMap.framework/MDMap
+        0x10d130000 -         0x10d13ffff app_settings arm64  <effb92a6a3a93a69aae2955de792fe28> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/app_settings.framework/app_settings
+        0x10d158000 -         0x10d177fff AMPopTip arm64  <48ffbfc690493dd0a41ad6f7d0a41aca> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/AMPopTip.framework/AMPopTip
+        0x10d1b0000 -         0x10d2dbfff Alamofire arm64  <5287af015bff3735925914b9d4bfffd3> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Alamofire.framework/Alamofire
+        0x10d4a4000 -         0x10d4e7fff Chat arm64  <f2e71016c5203f1a81cafdb92b30347d> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Chat.framework/Chat
+        0x10d568000 -         0x10d597fff Core arm64  <5c524b641f4e3104b1946473be484c4a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Core.framework/Core
+        0x10d5f4000 -         0x10d607fff Cosmos arm64  <ed79559407543397994b130e016c9a17> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Cosmos.framework/Cosmos
+        0x10d630000 -         0x10d643fff Differentiator arm64  <88dc9189005d3a789e2a0e32d3632a45> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Differentiator.framework/Differentiator
+        0x10d66c000 -         0x10d67ffff EasyTipView arm64  <9792405c36263b69824a95af11298d1f> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/EasyTipView.framework/EasyTipView
+        0x10d6a8000 -         0x10d6bbfff FirebaseCore arm64  <987a013e2767343fb99d52dee26dc802> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseCore.framework/FirebaseCore
+        0x10d6dc000 -         0x10d72bfff FirebaseCrashlytics arm64  <0fd4fc64f2bb3ac0b32b396d93766fed> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseCrashlytics.framework/FirebaseCrashlytics
+        0x10d7b0000 -         0x10d7e3fff FirebaseMessaging arm64  <6064a8f817e4363bafd394aff5a8b16c> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseMessaging.framework/FirebaseMessaging
+        0x10d834000 -         0x10d867fff FirebasePerformance arm64  <db90c48ad23333e6a67cb906f03655a4> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebasePerformance.framework/FirebasePerformance
+        0x10d8bc000 -         0x10d8e7fff FittedSheets arm64  <ece2bac7ada63078b19779e2e08beea3> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FittedSheets.framework/FittedSheets
+        0x10d944000 -         0x10d9abfff GSMMapsSDK arm64  <f1c7068bd7813a4eb6e4716106dacd05> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/GSMMapsSDK.framework/GSMMapsSDK
+        0x10da94000 -         0x10dad7fff IQKeyboardManagerSwift arm64  <d2f1b21bd428379496f1ea3096e74db7> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/IQKeyboardManagerSwift.framework/IQKeyboardManagerSwift
+        0x10db44000 -         0x10dc37fff Kingfisher arm64  <2ac0e32f80853a19a96d29bb07d4d7d8> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Kingfisher.framework/Kingfisher
+        0x10ddd4000 -         0x10dde3fff Localize arm64  <75305ecb9978358e85f31e5bab2f3917> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Localize.framework/Localize
+        0x10de04000 -         0x10de1ffff Networking arm64  <b0c914467d74383792799b51c19f423a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Networking.framework/Networking
+        0x10de5c000 -         0x10de67fff ProgressHUD arm64  <69a16ba7c40b3f689b1d71cf7e649c29> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/ProgressHUD.framework/ProgressHUD
+        0x10de7c000 -         0x10de8bfff RxAppState arm64  <eabbf7cfb05d343bbb05f05228644346> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/RxAppState.framework/RxAppState
+        0x10deac000 -         0x10df23fff RxCocoa arm64  <6a21ef24caae3bb09355f92960d5f55b> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/RxCocoa.framework/RxCocoa
+        0x10e01c000 -         0x10e037fff RxDataSources arm64  <967b4c8c3f8c3e399d54299e642eac64> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/RxDataSources.framework/RxDataSources
+        0x10e080000 -         0x10e097fff RxGesture arm64  <c246e76e11aa3249a31ef1e0266f322a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/RxGesture.framework/RxGesture
+        0x10e0cc000 -         0x10e0d7fff RxRelay arm64  <df6e7869173b370a976482db53f5d4f0> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/RxRelay.framework/RxRelay
+        0x10e0f0000 -         0x10e1a7fff RxSwift arm64  <e3b7d5895c3839f98030e45aaa00c558> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/RxSwift.framework/RxSwift
+        0x10e30c000 -         0x10e33bfff SkeletonView arm64  <bb6bc31aeb933d0c85babf8865cec1eb> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/SkeletonView.framework/SkeletonView
+        0x10e39c000 -         0x10e3b3fff SnapKit arm64  <5bc42a2eea803bdc8ae775e976756943> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/SnapKit.framework/SnapKit
+        0x10e3f8000 -         0x10e40bfff ToastViewSwift arm64  <0ba4ba1d26cf3ad08b550866fbb72892> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/ToastViewSwift.framework/ToastViewSwift
+        0x10e438000 -         0x10e463fff XCoordinator arm64  <b5e103aa38d8301ea5477ef980ed3bd9> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/XCoordinator.framework/XCoordinator
+        0x10e4c8000 -         0x10e4f7fff Starscream arm64  <36d5dd72579b3b108a411b61d4966e18> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/Starscream.framework/Starscream
+        0x10e558000 -         0x10e5abfff SDWebImage arm64  <4793a972b9c531e8897c25d6a112f669> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/SDWebImage.framework/SDWebImage
+        0x10e638000 -         0x10e643fff FirebaseABTesting arm64  <8aac074933de3281ad6935fca34cca60> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseABTesting.framework/FirebaseABTesting
+        0x10e65c000 -         0x10e663fff FirebaseCoreExtension arm64  <c7bb4bc8d5a139b7b5223e275aeca060> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseCoreExtension.framework/FirebaseCoreExtension
+        0x10e674000 -         0x10e693fff FirebaseCoreInternal arm64  <a4eec98bbd5c338ba749750f1e0a7e9d> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseCoreInternal.framework/FirebaseCoreInternal
+        0x10e6d4000 -         0x10e6ebfff FirebaseInstallations arm64  <341d3e4564d6344ca247a762f3211551> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseInstallations.framework/FirebaseInstallations
+        0x10e71c000 -         0x10e74ffff FirebaseRemoteConfig arm64  <b6ee7e08a39d34f189f7a1f3661c151a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseRemoteConfig.framework/FirebaseRemoteConfig
+        0x10e79c000 -         0x10e7a7fff FirebaseRemoteConfigInterop arm64  <ccc365ba674c35ec8bf0778e83ec9a72> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseRemoteConfigInterop.framework/FirebaseRemoteConfigInterop
+        0x10e7c4000 -         0x10e7e3fff FirebaseSessions arm64  <6a7d7fd769c93777b73673bfe179a20a> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseSessions.framework/FirebaseSessions
+        0x10e828000 -         0x10e857fff FirebaseSharedSwift arm64  <73915c7ef8bb3e8a8ad29d486bbb5a71> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/FirebaseSharedSwift.framework/FirebaseSharedSwift
+        0x10e8b0000 -         0x10e8d7fff GoogleDataTransport arm64  <c410e19406f43a57adbc951f584fff58> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/GoogleDataTransport.framework/GoogleDataTransport
+        0x10e914000 -         0x10e933fff GoogleUtilities arm64  <4518858ef64a3419bdb78efa5047ed3b> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/GoogleUtilities.framework/GoogleUtilities
+        0x10e960000 -         0x10e967fff nanopb arm64  <6540659de5dc33928fe931f0fe9098dc> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/nanopb.framework/nanopb
+        0x10e978000 -         0x10e9bbfff InputBarAccessoryView arm64  <cfb9c79ae82d3f74a160c080ef22cbdd> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/InputBarAccessoryView.framework/InputBarAccessoryView
+        0x10ea40000 -         0x10f0d3fff MapLibre arm64  <3378cbc8a921372dae5ee1c617000046> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MapLibre.framework/MapLibre
+        0x10f1c0000 -         0x10f217fff MessageKit arm64  <5c50017451363d6fb09c330008c51fa9> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/MessageKit.framework/MessageKit
+        0x10f2dc000 -         0x10f2fbfff NVActivityIndicatorView arm64  <cb8a286f127f3d9399ee4171aabf4390> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/NVActivityIndicatorView.framework/NVActivityIndicatorView
+        0x10f338000 -         0x10f357fff DifferenceKit arm64  <75f62310ab2a31039c334087a0bd2759> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/DifferenceKit.framework/DifferenceKit
+        0x10f390000 -         0x10f3b7fff SideMenu arm64  <d1128211e5d03bc8bcf9771f5fa79f4c> /private/var/containers/Bundle/Application/0943F532-DFE4-4FA1-ADE9-B37842DDFAE7/Driver.app/Frameworks/SideMenu.framework/SideMenu
+        0x10f534000 -         0x10f53ffff libobjc-trampolines.dylib arm64e  <def9fca06da1332796903b879ffc755c> /private/preboot/Cryptexes/OS/usr/lib/libobjc-trampolines.dylib
+        0x18086c000 -         0x1808bdbb3 libobjc.A.dylib arm64e  <e8825548d1483ee2807639ea9cb11129> /usr/lib/libobjc.A.dylib
+        0x181f63000 -         0x182bd705f Foundation arm64e  <c031896b2ef13d89966a0b52d54bceee> /System/Library/Frameworks/Foundation.framework/Foundation
+        0x1832ea000 -         0x183866fff CoreFoundation arm64e  <ae3c93380166397a9643356b14f6ee58> /System/Library/Frameworks/CoreFoundation.framework/CoreFoundation
+        0x183867000 -         0x18488975f Network arm64e  <d722be9e094c3f07a0b2045b9538f523> /System/Library/Frameworks/Network.framework/Network
+        0x18488a000 -         0x184c4f35f CFNetwork arm64e  <271cab2fd622384c8a7f2b5857119e0d> /System/Library/Frameworks/CFNetwork.framework/CFNetwork
+        0x18522c000 -         0x185422ddf CoreText arm64e  <dc78990aa3843d7da28d077c218af501> /System/Library/Frameworks/CoreText.framework/CoreText
+        0x185be8000 -         0x187b2a55f UIKitCore arm64e  <5e794caa41623ff6861e45f29f6b8ac0> /System/Library/PrivateFrameworks/UIKitCore.framework/UIKitCore
+        0x18b285000 -         0x18b2cab3f libdispatch.dylib arm64e  <b62778f758273a7ba96da24f7be95416> /usr/lib/system/libdispatch.dylib
+        0x190ac4000 -         0x190ee1b7f CoreMotion arm64e  <b73a47a293db3101aaecbf4e17ed83bb> /System/Library/Frameworks/CoreMotion.framework/CoreMotion
+        0x195710000 -         0x195ac6d5f MediaRemote arm64e  <aa4942c6521e3219b0fda3ff2802d47c> /System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote
+        0x19a862000 -         0x19c17517f JavaScriptCore arm64e  <a8879ed504303775bf58e2e1efcc8ed1> /System/Library/Frameworks/JavaScriptCore.framework/JavaScriptCore
+        0x1a25ac000 -         0x1a260b71f AudioSession arm64e  <f3cd1fcaeb17326a830fb62e0b851903> /System/Library/PrivateFrameworks/AudioSession.framework/AudioSession
+        0x1a9d4f000 -         0x1a9de987b dyld arm64e  <cd2e758de1a23b92aae775d38f66ec54> /usr/lib/dyld
+        0x1ba991000 -         0x1baa5e37f libboringssl.dylib arm64e  <a6a53c7f0874395e939130e6440cd2ce> /usr/lib/libboringssl.dylib
+        0x1c8c10000 -         0x1c90fec3f SiriNLUTypes arm64e  <7811b454e5ae3294ae6bb3e04af3eb0b> /System/Library/PrivateFrameworks/SiriNLUTypes.framework/SiriNLUTypes
+        0x1d0120000 -         0x1d0128c7f GraphicsServices arm64e  <d372e13f75053addae13062656f0b1f6> /System/Library/PrivateFrameworks/GraphicsServices.framework/GraphicsServices
+        0x1d4155000 -         0x1d418eebf libsystem_kernel.dylib arm64e  <a9a7ecbd24dd37e6bb23ecbfd9a87e33> /usr/lib/system/libsystem_kernel.dylib
+        0x20d6d9000 -         0x20d6e08cf libsystem_platform.dylib arm64e  <b6bbe54e920d32e6b271281a8e395551> /usr/lib/system/libsystem_platform.dylib
+        0x20d784000 -         0x20d7903f3 libsystem_pthread.dylib arm64e  <1ee1922008593cbcbdebdf37ca2e8e4f> /usr/lib/system/libsystem_pthread.dylib
+        0x20d7cf000 -         0x20d816dbf libxpc.dylib arm64e  <6e4f2f21192a30e8a3ad9915add1ebd2> /usr/lib/system/libxpc.dylib
+        0x210c0e000 -         0x210c35e7f caulk arm64e  <2d837b5b6b9737afb448acf71af422f6> /System/Library/PrivateFrameworks/caulk.framework/caulk
+        0x214a82000 -         0x214af253b libusrtcp.dylib arm64e  <c1a5208e8d783d0d8091ff092e6d07be> /usr/lib/libusrtcp.dylib
+
+EOF

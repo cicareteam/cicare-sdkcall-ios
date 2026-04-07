@@ -149,7 +149,8 @@ public class CallScreenViewController: UIViewController {
         else {
             return
         }
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
             if (self.isConnected) {
                 switch value {
                 case "weak":
@@ -166,7 +167,7 @@ public class CallScreenViewController: UIViewController {
                 }
             } else if (notification.userInfo?["error"] != nil) {
                 self.showErrorConnectionAlert(text: self.metaData[value] ?? value,
-                                              icon: ((notification.userInfo?["error"]) as! String == "call_failed_no_connection") ? nil :  AsssetKitImageProvider.Resources.errorIcon.image)
+                                              icon: (notification.userInfo?["error"] as? String == "call_failed_no_connection") ? nil :  AsssetKitImageProvider.Resources.errorIcon.image)
             }
         }
     }
@@ -174,7 +175,8 @@ public class CallScreenViewController: UIViewController {
     @objc private func callProfileSet(_ notification: Notification) {
         guard let nameString = notification.userInfo?["name"] as? String else { return }
         guard let avatarString = notification.userInfo?["avatar"] as? String else { return }
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
             
             self.calleeName = nameString
             
@@ -187,10 +189,10 @@ public class CallScreenViewController: UIViewController {
             self.nameLabel.text = self.calleeName
         }
         if let url = URL(string: avatarString) {
-            URLSession.shared.dataTask(with: url) { data, _, _ in
+            URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
                 if let data = data {
                     DispatchQueue.main.async {
-                        self.avatarImageView.image = UIImage(data: data)
+                        self?.avatarImageView.image = UIImage(data: data)
                     }
                 }
             }.resume()
@@ -209,11 +211,12 @@ public class CallScreenViewController: UIViewController {
               let status = CallStatus(rawValue: statusString) else { return }
         
         self.callStatus = status.rawValue
-        DispatchQueue.main.async {
-            self.endButton.button.isEnabled = true
+        DispatchQueue.main.async { [weak self] in
+            self?.endButton.button.isEnabled = true
         }
         
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
             switch status {
             case .incoming:
                 self.isConnected = true
@@ -281,12 +284,13 @@ public class CallScreenViewController: UIViewController {
         let toast = Alert(
             message: text,
             icon: icon
-        ) {
-            self.endedCall(delay: 0.0)
+        ) { [weak self] in
+            self?.endedCall(delay: 0.0)
             CallManager.sharedInstance.endActiveCall()
             CallManager.sharedInstance.dismissCallScreen()
         }
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
             toast.show(in: self.view)
         }
     }
@@ -390,10 +394,10 @@ public class CallScreenViewController: UIViewController {
 
         // Load avatar from URL
         if let avatarUrl = avatarUrl, let url = URL(string: avatarUrl) {
-            URLSession.shared.dataTask(with: url) { data, _, _ in
+            URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
                 if let data = data {
                     DispatchQueue.main.async {
-                        self.avatarImageView.image = UIImage(data: data)
+                        self?.avatarImageView.image = UIImage(data: data)
                     }
                 }
             }.resume()
@@ -466,12 +470,10 @@ public class CallScreenViewController: UIViewController {
 
     func startCallDurationTimer() {
         callDurationTimer?.invalidate()
-        DispatchQueue.main.async {
-          self.callDurationTimer = Timer.scheduledTimer(timeInterval: 1.0,
-                                                        target: self,
-                                                        selector: #selector(self.updateCallDuration),
-                                                        userInfo: nil,
-                                                        repeats: true)
+        DispatchQueue.main.async { [weak self] in
+            self?.callDurationTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+                self?.updateCallDuration()
+            }
         }
     }
 
@@ -514,7 +516,7 @@ public class CallScreenViewController: UIViewController {
             self.speakerButton.button.backgroundColor =  self.isSpeakerOn ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             let session = AVAudioSession.sharedInstance()
             do {
-                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .allowBluetoothA2DP])
+                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP, .allowBluetoothA2DP])
                 try session.setActive(true)
                 
                 // Toggle the audio route to speaker or default (e.g., earphone)
@@ -615,7 +617,7 @@ public class CallScreenViewController: UIViewController {
             self.speakerButton.button.backgroundColor =  self.isSpeakerOn ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
             let session = AVAudioSession.sharedInstance()
             do {
-                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .allowBluetoothA2DP])
+                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetoothHFP, .allowBluetoothA2DP])
                 try session.setActive(true)
                 
                 // Toggle the audio route to speaker or default (e.g., earphone)

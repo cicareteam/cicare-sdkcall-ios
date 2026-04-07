@@ -20,6 +20,7 @@ protocol WebRTCEventCallback: AnyObject {
 
 class WebRTCManager: NSObject {
     weak var callback: WebRTCEventCallback?
+    private static var sslInitialized = false
     private var peerConnection: RTCPeerConnection!
     private var peerConnectionFactory: RTCPeerConnectionFactory!
     private var audioTrack: RTCAudioTrack?
@@ -42,7 +43,10 @@ class WebRTCManager: NSObject {
     }
 
     private func initializePeerConnectionFactory() {
-        RTCInitializeSSL()
+        if !WebRTCManager.sslInitialized {
+            RTCInitializeSSL()
+            WebRTCManager.sslInitialized = true
+        }
         let encoderFactory = RTCDefaultVideoEncoderFactory()
         let decoderFactory = RTCDefaultVideoDecoderFactory()
         peerConnectionFactory = RTCPeerConnectionFactory(encoderFactory: encoderFactory,
@@ -214,10 +218,9 @@ class WebRTCManager: NSObject {
     }
 
     func close() {
-        if (peerConnection.iceConnectionState == .connected ||
-            peerConnection.iceConnectionState == .completed) {
+        callback = nil
+        if peerConnection != nil {
             peerConnection.close()
-            RTCShutdownInternalTracer()
         }
     }
 }
