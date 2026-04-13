@@ -20,7 +20,6 @@ protocol WebRTCEventCallback: AnyObject {
 
 class WebRTCManager: NSObject {
     weak var callback: WebRTCEventCallback?
-    private static var sslInitialized = false
     private var peerConnection: RTCPeerConnection!
     private var peerConnectionFactory: RTCPeerConnectionFactory!
     private var audioTrack: RTCAudioTrack?
@@ -43,10 +42,7 @@ class WebRTCManager: NSObject {
     }
 
     private func initializePeerConnectionFactory() {
-        if !WebRTCManager.sslInitialized {
-            RTCInitializeSSL()
-            WebRTCManager.sslInitialized = true
-        }
+        RTCInitializeSSL()
         let encoderFactory = RTCDefaultVideoEncoderFactory()
         let decoderFactory = RTCDefaultVideoDecoderFactory()
         peerConnectionFactory = RTCPeerConnectionFactory(encoderFactory: encoderFactory,
@@ -100,7 +96,7 @@ class WebRTCManager: NSObject {
         // CRITICAL: Restore mute state after creating new track (for reconnection scenarios)
         if isMicMuted {
             print("♻️ Restoring muted state after reinit")
-            let _ = setMicEnabled(false)
+            setMicEnabled(false)
         }
         
         //peerConnection.addTransceiver(with: audioTrack!)
@@ -218,9 +214,10 @@ class WebRTCManager: NSObject {
     }
 
     func close() {
-        callback = nil
-        if peerConnection != nil {
+        if (peerConnection.iceConnectionState == .connected ||
+            peerConnection.iceConnectionState == .completed) {
             peerConnection.close()
+            RTCShutdownInternalTracer()
         }
     }
 }
