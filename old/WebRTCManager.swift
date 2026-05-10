@@ -20,18 +20,13 @@ protocol WebRTCEventCallback: AnyObject {
 
 class WebRTCManager: NSObject {
     weak var callback: WebRTCEventCallback?
-    private static var sslInitialized = false
-    private var peerConnection: RTCPeerConnection?
+    private var peerConnection: RTCPeerConnection!
     private var peerConnectionFactory: RTCPeerConnectionFactory!
     private var audioTrack: RTCAudioTrack?
     private let iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
     
     // Track mute state to preserve across reconnections
     private var isMicMuted: Bool = false
-    
-    // Thread safety for close operations
-    private let rtcQueue = DispatchQueue(label: "com.cicare.webrtc.serial")
-    private var isClosed = false
     
     override init() {
         super.init()
@@ -42,20 +37,12 @@ class WebRTCManager: NSObject {
     func reinit() {
         // State will be preserved (isMicMuted not reset)
         print("🔄 Reinitializing WebRTC, mute state: \(isMicMuted)")
-        // Close native peer before recreating to release ICE/threads/sockets
-        peerConnection?.close()
-        peerConnection = nil
-        audioTrack = nil
-        isClosed = false
         initializePeerConnectionFactory()
         createPeerConnection()
     }
 
     private func initializePeerConnectionFactory() {
-        if !WebRTCManager.sslInitialized {
-            RTCInitializeSSL()
-            WebRTCManager.sslInitialized = true
-        }
+        RTCInitializeSSL()
         let encoderFactory = RTCDefaultVideoEncoderFactory()
         let decoderFactory = RTCDefaultVideoDecoderFactory()
         peerConnectionFactory = RTCPeerConnectionFactory(encoderFactory: encoderFactory,
@@ -72,7 +59,7 @@ class WebRTCManager: NSObject {
         peerConnection = peerConnectionFactory.peerConnection(with: config,
                                                               constraints: constraints,
                                                               delegate: self)
-        peerConnection?.statistics { reports in
+        peerConnection.statistics { reports in
             for report in reports.statistics.values {
                 if report.type == "outbound-rtp" || report.type == "inbound-rtp" {
                     if let packetLoss = report.values["packetLoss"] as? String,
@@ -90,7 +77,7 @@ class WebRTCManager: NSObject {
 
     func initMic() {
         
-        if peerConnection?.transceivers.contains(where: { $0.mediaType == .audio }) == true {
+        if peerConnection.transceivers.contains(where: { $0.mediaType == .audio }) {
             print("Audio transceiver already exists, skipping initMic")
             return
         }
@@ -102,14 +89,14 @@ class WebRTCManager: NSObject {
         let transceiverInit = RTCRtpTransceiverInit()
             transceiverInit.direction = .sendRecv
         
-        if let transceiver = peerConnection?.addTransceiver(of: .audio, init: transceiverInit) {
+        if let transceiver = peerConnection.addTransceiver(of: .audio, init: transceiverInit) {
             transceiver.sender.track = audioTrack
         }
         
         // CRITICAL: Restore mute state after creating new track (for reconnection scenarios)
         if isMicMuted {
             print("♻️ Restoring muted state after reinit")
-            let _ = setMicEnabled(false)
+            setMicEnabled(false)
         }
         
         //peerConnection.addTransceiver(with: audioTrack!)
@@ -140,7 +127,7 @@ class WebRTCManager: NSObject {
         let constraints = RTCMediaConstraints(mandatoryConstraints: ["OfferToReceiveAudio": "true",
                                                                      "OfferToReceiveVideo": "false"],
                                               optionalConstraints: nil)
-        peerConnection?.offer(for: constraints) { sdp, error in
+        peerConnection.offer(for: constraints) { sdp, error in
             if let err = error {
                 completion(.failure(err))
                 return
@@ -149,7 +136,7 @@ class WebRTCManager: NSObject {
                 completion(.failure(NSError(domain: "WebRTC", code: -1, userInfo: [NSLocalizedDescriptionKey: "SDP is nil"])))
                 return
             }
-            self.peerConnection?.setLocalDescription(sdp) { setError in
+            self.peerConnection.setLocalDescription(sdp) { setError in
                 if let se = setError {
                     completion(.failure(se))
                 } else {
@@ -163,7 +150,7 @@ class WebRTCManager: NSObject {
         let constraints = RTCMediaConstraints(mandatoryConstraints: ["OfferToReceiveAudio": "true",
                                                                      "OfferToReceiveVideo": "false"],
                                               optionalConstraints: nil)
-        peerConnection?.answer(for: constraints) { sdp, error in
+        peerConnection.answer(for: constraints) { sdp, error in
             if let err = error {
                 completion(.failure(err))
                 return
@@ -172,7 +159,7 @@ class WebRTCManager: NSObject {
                 completion(.failure(NSError(domain: "WebRTC", code: -1, userInfo: [NSLocalizedDescriptionKey: "SDP is nil"])))
                 return
             }
-            self.peerConnection?.setLocalDescription(sdp) { setError in
+            self.peerConnection.setLocalDescription(sdp) { setError in
                 if let se = setError {
                     completion(.failure(se))
                 } else {
@@ -183,18 +170,14 @@ class WebRTCManager: NSObject {
     }
 
     func setRemoteDescription(sdp: RTCSessionDescription, completion: ((Error?) -> Void)? = nil) {
-        guard let pc = peerConnection else {
-            print("PeerConnection is nil, ignoring setRemoteDescription")
-            return
-        }
-        let state = pc.signalingState
+        let state = peerConnection.signalingState
 
         if sdp.type == .answer && state != .haveLocalOffer {
             print("Ignoring answer SDP, invalid state:", state)
             return
         }
         
-        pc.setRemoteDescription(sdp) { error in
+        peerConnection.setRemoteDescription(sdp) { error in
           if let err = error {
             print("Remote SDP error: \(err)")
           } else {
@@ -205,8 +188,7 @@ class WebRTCManager: NSObject {
     }
 
     func isPeerConnectionActive() -> Bool {
-        guard let pc = peerConnection else { return false }
-        return pc.signalingState != .closed
+        return peerConnection.signalingState != .closed
     }
 
     func setMicEnabled(_ enabled: Bool) -> Bool {
@@ -215,7 +197,7 @@ class WebRTCManager: NSObject {
         print("🎤 Setting mic enabled: \(enabled), muted: \(isMicMuted)")
         
         if (audioTrack != nil) {
-            peerConnection?.transceivers
+            peerConnection.transceivers
                         .compactMap { return $0.sender.track as? RTCAudioTrack }
                         .forEach { $0.isEnabled = enabled }
             print("audio \(enabled ? "enabled" : "disabled")")
@@ -231,19 +213,11 @@ class WebRTCManager: NSObject {
         return isMicMuted
     }
 
-    func close(completion: (() -> Void)? = nil) {
-        rtcQueue.async { [weak self] in
-            guard let self = self, !self.isClosed else {
-                DispatchQueue.main.async { completion?() }
-                return
-            }
-            self.isClosed = true
-            self.callback = nil
-            self.peerConnection?.close()
-            self.peerConnection = nil
-            self.audioTrack = nil
-            print("✅ WebRTC peerConnection fully closed and cleared")
-            DispatchQueue.main.async { completion?() }
+    func close() {
+        if (peerConnection.iceConnectionState == .connected ||
+            peerConnection.iceConnectionState == .completed) {
+            peerConnection.close()
+            RTCShutdownInternalTracer()
         }
     }
 }
