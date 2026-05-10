@@ -13,6 +13,7 @@ import UIKit
 import SwiftUI
 import CommonCrypto
 import Network
+import WebRTC
 
 final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, CXProviderDelegate {
     
@@ -54,7 +55,14 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         callObserver.setDelegate(self, queue: nil)
         provider = CXProvider.init(configuration: configuration)
         provider?.setDelegate(self, queue: nil)
-        
+
+        // Hand audio session control to CallKit; WebRTC must NOT auto-activate.
+        let rtcSession = RTCAudioSession.sharedInstance()
+        rtcSession.lockForConfiguration()
+        rtcSession.useManualAudio = true
+        rtcSession.isAudioEnabled = false
+        rtcSession.unlockForConfiguration()
+
         callController = CXCallController.init()
         
         NotificationCenter.default.addObserver(self,
@@ -451,8 +459,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.postCallStatus(.refused)
                 self.calls.removeValue(forKey: uuid)
                 if (self.currentCall == uuid) {
-                    self.dismissCallScreen()
                     self.currentCall = nil
+                    self.dismissCallScreen()
+                    SocketSignaling.shared.releaseWebrtc()
                 }
             }
         }
@@ -467,8 +476,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.postCallStatus(.busy)
                 self.calls.removeValue(forKey: uuid)
                 if (self.currentCall == uuid) {
-                    self.dismissCallScreen()
                     self.currentCall = nil
+                    self.dismissCallScreen()
+                    SocketSignaling.shared.releaseWebrtc()
                 }
             }
         }
@@ -535,6 +545,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.postCallStatus(.ended)
                 self.currentCall = nil
                 self.calls.removeValue(forKey: uuid)
+                self.dismissCallScreen()
                 SocketSignaling.shared.releaseWebrtc()
             }
         }
@@ -550,8 +561,10 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             self.postCallStatus(.ended)
             if (self.currentCall == uuid) {
                 self.currentCall = nil
-                self.dismissCallScreen()
-                SocketSignaling.shared.releaseWebrtc()
+                // Dismiss AFTER WebRTC is fully closed
+                SocketSignaling.shared.releaseWebrtc {
+                    self.dismissCallScreen()
+                }
             }
             self.calls.removeValue(forKey: uuid)
         }
@@ -566,11 +579,12 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             self.postCallStatus(callState)
             if (self.currentCall == uuid) {
                 self.currentCall = nil
-                self.dismissCallScreen()
-                SocketSignaling.shared.releaseWebrtc()
+                // Dismiss AFTER WebRTC is fully closed
+                SocketSignaling.shared.releaseWebrtc {
+                    self.dismissCallScreen()
+                }
             }
             self.calls.removeValue(forKey: uuid)
-            
         }
     }
     
@@ -643,15 +657,34 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
         print("🔊 Audio session activated")
         self.configureAudioSession()
+
+        // Bridge AVAudioSession activation to WebRTC's RTCAudioSession so
+        // the audio unit starts/restarts correctly across consecutive calls.
+        let rtcSession = RTCAudioSession.sharedInstance()
+        rtcSession.lockForConfiguration()
+        rtcSession.audioSessionDidActivate(audioSession)
+        rtcSession.isAudioEnabled = true
+        rtcSession.unlockForConfiguration()
+
         if let _ = currentCall {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                 SocketSignaling.shared.initOffer()
             }
         }
     }
-    
+
     func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
         print("Audio session deactivated")
+
+        // Tell WebRTC the session is gone so the audio unit is torn down.
+        // Without this, the next call may activate the session but WebRTC
+        // never restarts its audio unit and the second call has no audio.
+        let rtcSession = RTCAudioSession.sharedInstance()
+        rtcSession.lockForConfiguration()
+        rtcSession.audioSessionDidDeactivate(audioSession)
+        rtcSession.isAudioEnabled = false
+        rtcSession.unlockForConfiguration()
+
         // releaseWebrtc() sudah dipanggil dari endedCall/endCall/cancelCall/missedCall
         // Tidak perlu dipanggil lagi di sini untuk menghindari double-close
     }
@@ -660,7 +693,10 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         if (calls[action.callUUID]?.callStatus == .incoming) {
             rejectCall()
         }
-        cancelledCalls.removeAll()
+        // Only drop the marker for THIS call — other in-flight cancels must
+        // keep their markers so their async completions can still detect the
+        // cancellation.
+        cancelledCalls.remove(action.callUUID)
         action.fulfill()
     }
     

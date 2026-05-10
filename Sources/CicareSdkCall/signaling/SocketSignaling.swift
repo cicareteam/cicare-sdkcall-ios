@@ -50,8 +50,8 @@ class SocketSignaling: NSObject {
     private var reconnectAttempt: Int = 0
     
     private var disconnectTimer: Timer?
-    private let disconnectGracePeriod: TimeInterval = 30.0  // 35 detik grace period (increased for better stability)
-    private var disconnectStartTime: Date?  // Track when disconnect started
+    private let disconnectGracePeriod: TimeInterval = 30.0  
+    private var disconnectStartTime: Date?  
     
     override init() {
         super.init()
@@ -76,6 +76,12 @@ class SocketSignaling: NSObject {
     func connect(wssUrl: URL, token: String, uuid: UUID, completion: @escaping (SocketIOClientStatus) -> Void) {
         self.uuid = uuid
         isCallConnected = false
+        
+        // Close old WebRTC instance if exists (prevent leak on rapid successive calls)
+        let oldManager = webrtcManager
+        webrtcManager = nil
+        oldManager?.close()
+        
         webrtcManager = WebRTCManager()
         self.webrtcManager?.callback = self
         manager = SocketManager(socketURL: wssUrl,
@@ -453,11 +459,15 @@ class SocketSignaling: NSObject {
         }
     }
     
-    public func releaseWebrtc() {
-        guard let manager = webrtcManager else { return }
-        webrtcManager = nil 
-        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) {
-            manager.close()
+    public func releaseWebrtc(completion: (() -> Void)? = nil) {
+        guard let manager = webrtcManager else {
+            completion?()
+            return
+        }
+        webrtcManager = nil
+        manager.close {
+            print("✅ WebRTC fully released, signaling cleanup done")
+            completion?()
         }
     }
     
@@ -488,13 +498,30 @@ class SocketSignaling: NSObject {
         cancelDisconnectTimer()
         timer?.invalidate()
         timer = nil
-        if let uuid = self.uuid {
-            CallManager.sharedInstance.endCall(uuid: uuid)
+
+        // Capture local refs and detach from properties BEFORE any async hop,
+        // so a subsequent connect() that reassigns self.socket / self.uuid
+        // is not affected by this cleanup completion.
+        let callUUID = self.uuid
+        let socketRef = self.socket
+        let managerRef = self.manager
+        self.uuid = nil
+        self.socket = nil
+        self.manager = nil
+
+        // Release WebRTC FIRST, then disconnect socket AFTER WebRTC is fully closed
+        releaseWebrtc {
+            socketRef?.disconnect()
+            socketRef?.removeAllHandlers()
+            _ = managerRef // keep alive until disconnect completes
+
+            print("✅ Socket disconnected after WebRTC cleanup")
+
+            // Notify CallManager AFTER full cleanup to end CXTransaction
+            if let uuid = callUUID {
+                CallManager.sharedInstance.endedCall(uuid: uuid, callState: .ended)
+            }
         }
-        socket?.disconnect()
-        socket?.removeAllHandlers()
-        socket = nil
-        
     }
     
     deinit {
