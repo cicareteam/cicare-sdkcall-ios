@@ -31,15 +31,28 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     private let callObserver = CXCallObserver()
     
-    private var calls: [UUID: CallInfo] = [:]
-    private var currentCall: UUID?
+    private let callsQueue = DispatchQueue(label: "com.cicare.sdkcall.calls.queue")
+    private var _calls: [UUID: CallInfo] = [:]
+    private var calls: [UUID: CallInfo] {
+        get { callsQueue.sync { _calls } }
+        set { callsQueue.sync { _calls = newValue } }
+    }
+    private var _currentCall: UUID?
+    private var currentCall: UUID? {
+        get { callsQueue.sync { _currentCall } }
+        set { callsQueue.sync { _currentCall = newValue } }
+    }
     private var isInCall: Bool = false
     private var defaultVolume: Float = 1.0
     
     private var incomingCallTimers: [UUID: Timer] = [:]
     private let incomingCallTimeout: TimeInterval = 60.0
     
-    private var cancelledCalls: Set<UUID> = []
+    private var _cancelledCalls: Set<UUID> = []
+    private var cancelledCalls: Set<UUID> {
+        get { callsQueue.sync { _cancelledCalls } }
+        set { callsQueue.sync { _cancelledCalls = newValue } }
+    }
     private var callStatus: CallStatus?
     
     private override init() {
@@ -62,7 +75,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                                              name: AVAudioSession.interruptionNotification,
                                              object: AVAudioSession.sharedInstance())
         
-        // ✅ Handle audio route changes (WiFi ↔ 4G, Bluetooth connections, etc.)
+        // Handle audio route changes (WiFi ↔ 4G, Bluetooth connections, etc.)
         NotificationCenter.default.addObserver(self,
                                              selector: #selector(handleRouteChange),
                                              name: AVAudioSession.routeChangeNotification,
@@ -71,7 +84,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     public func deactiveCallKit() {
         provider?.invalidate()
-        provider = nil
         provider = nil
         callController = nil
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
@@ -164,20 +176,17 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         isOutgoing = call.isOutgoing
         if call.hasEnded {
             isInCall = false
-            //delegate?.callDidEnd()
-        } else if !call.hasEnded {
-            isInCall = true
-            //delegate?.callInprogress()
         } else if call.hasConnected {
-            //delegate?.callDidConnected()
-        //} else if !call.isOutgoing && !call.hasConnected && !call.hasEnded {
-        //} else if !call.isOutgoing && call.hasConnected {
-        //    delegate?.callDidConnected()
+            isInCall = true
+        } else {
+            // Call in progress (ringing, connecting, etc.)
+            isInCall = true
         }
     }
     
     func providerDidReset(_ provider: CXProvider) {
-        for (uuid, _) in calls {
+        let snapshot = calls
+        for (uuid, _) in snapshot {
             endCall(uuid: uuid)
         }
     }
@@ -333,7 +342,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                             case .success(let data):
                                 if let wssUrl = URL(string: data.server) {
                                     SocketSignaling.shared.connect(wssUrl: wssUrl, token: data.token, uuid: inUUID) {_ in
-                                        
+                                        print ("connected from incoming report")
                                     }
                                     self.currentCall = inUUID
                                     self.postCallStatus(.incoming)
@@ -375,7 +384,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func missedCall() {
-        for (uuid, _) in calls {
+        let snapshot = calls
+        for (uuid, _) in snapshot {
             let endCallAction = CXEndCallAction.init(call:uuid)
             let transaction = CXTransaction.init()
             transaction.addAction(endCallAction)
@@ -425,7 +435,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func endActiveCall() {
-        for (uuid, call) in calls {
+        let snapshot = calls
+        for (uuid, call) in snapshot {
             if (call.callType == .OUTGOING && (call.callStatus == .connecting || call.callStatus == .calling)) {
                 cancelCall(uuid: uuid)
             } else {
@@ -499,8 +510,8 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func cancelCall(uuid: UUID) {
-        // ✅ Mark IMMEDIATELY (before any async operation)
-        print("🚫 Marking call as cancelled: \(uuid)")
+        // Mark IMMEDIATELY (before any async operation)
+        print("Marking call as cancelled: \(uuid)")
         cancelledCalls.insert(uuid)
         
         let endCallAction = CXEndCallAction.init(call:uuid)
@@ -518,10 +529,10 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             }
             self.calls.removeValue(forKey: uuid)
             
-            // ✅ Clean up after 2 seconds (handle late callbacks)
+            // Clean up after 2 seconds (handle late callbacks)
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                 self.cancelledCalls.remove(uuid)
-                print("🧹 Cleaned up cancelled call: \(uuid)")
+                print("Cleaned up cancelled call: \(uuid)")
             }
         }
     }
@@ -541,7 +552,10 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         }
     }
     
-    func endCall(uuid: UUID) {
+    func endCall(uuid: UUID?) {
+        guard let uuid = uuid else {
+            return
+        }
         self.cancelIncomingCallTimer(for: uuid)
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
@@ -558,7 +572,10 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         }
     }
     
-    func endedCall(uuid: UUID, callState: CallStatus) {
+    func endedCall(uuid: UUID?, callState: CallStatus) {
+        guard let uuid = uuid else {
+            return
+        }
         self.cancelIncomingCallTimer(for: uuid)
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
@@ -600,7 +617,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 //self.currentCall = action.callUUID
                 SocketSignaling.shared.answerCall() {
                     self.calls[action.callUUID]?.callStatus = .connected
-                    SocketSignaling.shared.initOffer()
+                    self.postCallStatus(.connected)
                 }
             }
         }
@@ -642,7 +659,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     /// Called when the provider's audio session activation state changes.
     func provider(_ provider: CXProvider, didActivate audioSession: AVAudioSession) {
-        print("🔊 Audio session activated")
+        print("Audio session activated")
         self.configureAudioSession()
         if let _ = currentCall {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
@@ -653,9 +670,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
         print("Audio session deactivated")
-        if let _ = currentCall {
-            SocketSignaling.shared.releaseWebrtc()
-        }
+        // WebRTC cleanup is handled by endCall/endedCall flows instead.
     }
     
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
@@ -706,16 +721,16 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         
         switch type {
         case .began:
-            print("🔊 Audio interruption began")
+            print("Audio interruption began")
             // Audio has effectively stopped
             
         case .ended:
-            print("🔊 Audio interruption ended")
+            print("Audio interruption ended")
             guard let optionsValue = userInfo[AVAudioSessionInterruptionOptionKey] as? UInt else { return }
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsValue)
             
             if options.contains(.shouldResume) {
-                print("🔊 Resuming audio session...")
+                print("Resuming audio session...")
                 configureAudioSession()
                 
                 // Re-initialize WebRTC audio if we are in a call
@@ -751,15 +766,14 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             
         case .categoryChange:
             if let _ = self.currentCall {
-                configureAudioSession()
-                print("🔊 Audio category changed")
+                print("Audio category changed")
             }
             
         case .override:
-            print("🔊 Audio route override")
+            print("Audio route override")
             
         case .wakeFromSleep:
-            print("🔊 Device woke from sleep")
+            print("Device woke from sleep")
             // Reinitialize audio if in call
             if let _ = self.currentCall {
                 configureAudioSession()
@@ -769,13 +783,13 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             }
             
         case .noSuitableRouteForCategory:
-            print("🔊 No suitable audio route")
+            print("No suitable audio route")
             
         case .routeConfigurationChange:
-            print("🔊 Audio route configuration changed")
+            print("Audio route configuration changed")
             
         case .unknown:
-            print("🔊 Audio unknown change")
+            print("Audio unknown change")
             break
         @unknown default:
             break
@@ -783,7 +797,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     private func showCallScreen(uuid: UUID, callStatus: String) {
-        guard self.calls[uuid] != nil else { return }
+        guard let callInfo = self.calls[uuid] else { return }
         self.screenIsShown = true
         // Tutup window lama jika ada
         self.callWindow?.isHidden = true
@@ -792,16 +806,16 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         let vc: UIViewController
         if #available(iOS 13.0, *) {
             vc = UIHostingController(rootView: CallScreenWrapper(
-                calleeName: self.calls[uuid]!.callName,
+                calleeName: callInfo.callName,
                 callStatus: callStatus,
-                avatarUrl: self.calls[uuid]!.callAvatar,
+                avatarUrl: callInfo.callAvatar,
                 metaData: self.metaData
             ))
         } else {
             let screen = CallScreenViewController()
             screen.callStatus = callStatus
-            screen.calleeName = self.calls[uuid]!.callName
-            screen.avatarUrl = self.calls[uuid]!.callAvatar
+            screen.calleeName = callInfo.callName
+            screen.avatarUrl = callInfo.callAvatar
             screen.metaData = self.metaData
             vc = screen
         }
@@ -851,13 +865,23 @@ extension CallManager {
     func isInternetAvailable(completion: @escaping (Bool) -> Void) {
         let monitor = NWPathMonitor()
         let queue = DispatchQueue.global(qos: .background)
+        var hasCompleted = false
 
         monitor.pathUpdateHandler = { path in
+            guard !hasCompleted else { return }
+            hasCompleted = true
             completion(path.status == .satisfied)
             monitor.cancel()
         }
 
         monitor.start(queue: queue)
+        
+        DispatchQueue.global().asyncAfter(deadline: .now() + 5.0) {
+            guard !hasCompleted else { return }
+            hasCompleted = true
+            completion(false)
+            monitor.cancel()
+        }
     }
 }
 
@@ -894,8 +918,8 @@ struct CallSession: Decodable {
 
 
 protocol CallServiceDelegate: AnyObject {
-    func endCall(uuid: UUID)
-    func endedCall(uuid: UUID, callState: CallStatus)
+    func endCall(uuid: UUID?)
+    func endedCall(uuid: UUID?, callState: CallStatus)
     func callAccepted()
     func callConnected()
     func callRinging()

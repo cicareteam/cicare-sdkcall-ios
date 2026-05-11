@@ -134,6 +134,7 @@ public class CallScreenViewController: UIViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(handleCallStatus(_:)), name: .callStatusChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(callProfileSet(_:)), name: .callProfileSet, object: "")
         NotificationCenter.default.addObserver(self, selector: #selector(handleNetworkSignal(_:)), name: .callNetworkChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleAudioRouteChanged(_:)), name: AVAudioSession.routeChangeNotification, object: nil)
         /*NotificationCenter.default.addObserver(
             self,
             selector: #selector(dismissScreen),
@@ -166,9 +167,30 @@ public class CallScreenViewController: UIViewController {
                 }
             } else if (notification.userInfo?["error"] != nil) {
                 self.showErrorConnectionAlert(text: self.metaData[value] ?? value,
-                                              icon: ((notification.userInfo?["error"]) as! String == "call_failed_no_connection") ? nil :  AsssetKitImageProvider.Resources.errorIcon.image)
+                                              icon: ((notification.userInfo?["error"]) as? String == "call_failed_no_connection") ? nil :  AsssetKitImageProvider.Resources.errorIcon.image)
             }
         }
+    }
+    
+    @objc private func handleAudioRouteChanged(_ notification: Notification) {
+        DispatchQueue.main.async {
+            self.updateSpeakerIcon()
+        }
+    }
+    
+    private func updateSpeakerIcon() {
+        guard let speakerBtn = self.speakerButton else { return }
+        let session = AVAudioSession.sharedInstance()
+        let isBluetooth = session.currentRoute.outputs.contains {
+            $0.portType == .bluetoothA2DP || $0.portType == .bluetoothHFP || $0.portType == .bluetoothLE
+        }
+        
+        let speakerSysName = isBluetooth ? "headphones" : (self.isSpeakerOn ? "speaker.wave.2.fill" : "speaker.wave.2")
+        let speakerImgName = isBluetooth ? "bluetooth" : "speaker"
+        
+        speakerBtn.icon = self.compatibleImage(named: speakerImgName, systemName: speakerSysName)
+        speakerBtn.button.tintColor = self.isSpeakerOn ? .white : UIColor(hex: "17666A")!
+        speakerBtn.button.backgroundColor = self.isSpeakerOn ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
     }
     
     @objc private func callProfileSet(_ notification: Notification) {
@@ -509,25 +531,12 @@ public class CallScreenViewController: UIViewController {
             backgroundColor: UIColor(hex: "E9F8F9")!
         ) {
             self.isSpeakerOn.toggle()
-            self.speakerButton.icon = self.isSpeakerOn ? self.compatibleImage(named: "speaker", systemName: "speaker.wave.2.fill") : self.compatibleImage(named: "speaker", systemName: "speaker.wave.2")
-            self.speakerButton.button.tintColor = self.isSpeakerOn ? .white : UIColor(hex: "17666A")!
-            self.speakerButton.button.backgroundColor =  self.isSpeakerOn ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
+            self.updateSpeakerIcon()
             let session = AVAudioSession.sharedInstance()
-            do {
-                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .allowBluetoothA2DP])
-                try session.setActive(true)
-                
-                // Toggle the audio route to speaker or default (e.g., earphone)
-                if self.isSpeakerOn {
-                    try session.overrideOutputAudioPort(.speaker)
-                } else {
-                    try session.overrideOutputAudioPort(.none)
-                }
-            } catch {
-                print("Failed to set audio session: \(error)")
-            }
+            SocketSignaling.shared.setSpeaker(self.isSpeakerOn)
         }
         speakerButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
+        self.updateSpeakerIcon()
         
         /*let messageButton = CircleIconButton(
             icon: compatibleImage(named: "message", systemName: "message"),
@@ -610,25 +619,11 @@ public class CallScreenViewController: UIViewController {
             backgroundColor: UIColor(hex: "E9F8F9")!
         ) {
             self.isSpeakerOn.toggle()
-            self.speakerButton.icon = self.isSpeakerOn ? self.compatibleImage(named: "speaker", systemName: "speaker.wave.2.fill") : self.compatibleImage(named: "speaker", systemName: "speaker.wave.2")
-            self.speakerButton.button.tintColor = self.isSpeakerOn ? .white : UIColor(hex: "17666A")!
-            self.speakerButton.button.backgroundColor =  self.isSpeakerOn ? UIColor(hex: "00BABD")! : UIColor(hex: "E9F8F9")!
-            let session = AVAudioSession.sharedInstance()
-            do {
-                try session.setCategory(.playAndRecord, mode: .voiceChat, options: [.allowBluetooth, .allowBluetoothA2DP])
-                try session.setActive(true)
-                
-                // Toggle the audio route to speaker or default (e.g., earphone)
-                if self.isSpeakerOn {
-                    try session.overrideOutputAudioPort(.speaker)
-                } else {
-                    try session.overrideOutputAudioPort(.none)
-                }
-            } catch {
-                print("Failed to set audio session: \(error)")
-            }
+            self.updateSpeakerIcon()
+            SocketSignaling.shared.setSpeaker(self.isSpeakerOn)
         }
         speakerButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
+        self.updateSpeakerIcon()
         
         let audioButtonStack = UIStackView(arrangedSubviews: [speakerButton, muteButton])
         audioButtonStack.axis = .horizontal
