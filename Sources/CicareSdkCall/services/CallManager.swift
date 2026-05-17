@@ -13,6 +13,7 @@ import UIKit
 import SwiftUI
 import CommonCrypto
 import Network
+import UserNotifications
 
 final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, CXProviderDelegate {
     
@@ -38,12 +39,13 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         set { callsQueue.sync { _calls = newValue } }
     }
     private var _currentCall: UUID?
-    private var currentCall: UUID? {
+    var currentCall: UUID? {
         get { callsQueue.sync { _currentCall } }
         set { callsQueue.sync { _currentCall = newValue } }
     }
     private var isInCall: Bool = false
     private var defaultVolume: Float = 1.0
+    private var audioSessionConfigured: Bool = false
     
     private var incomingCallTimers: [UUID: Timer] = [:]
     private let incomingCallTimeout: TimeInterval = 60.0
@@ -90,7 +92,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
     }
     
-    private func requestTransaction(transaction : CXTransaction, completion: @escaping (Bool) -> Void) {
+    func requestTransaction(transaction : CXTransaction, completion: @escaping (Bool) -> Void) {
         
         callController?.request(transaction, completion: { (error : Error?) in
             
@@ -187,6 +189,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     func providerDidReset(_ provider: CXProvider) {
         let snapshot = calls
         for (uuid, _) in snapshot {
+            print("provider did reset end call")
             endCall(uuid: uuid)
         }
     }
@@ -309,15 +312,15 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     ) {
         
         if (self.provider == nil) {
-            return
+            self.setupCallKit()
         }
         
         let inUUID = UUID()
+        let update = CXCallUpdate()
         self.startIncomingCallTimer(for: inUUID)
         self.metaData = metaData
         if let alertData = metaData["alert_data"] {
             
-            let update = CXCallUpdate()
             update.remoteHandle = CXHandle(type: .generic, value: callerName)
             update.localizedCallerName = callerName
             update.hasVideo = false
@@ -326,9 +329,13 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                     switch result {
                     case .success(let data):
                         SocketSignaling.shared.sendBusyCall(token: data.token)
-                        self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .unanswered)
+                        self.failedIncomingCall(with: inUUID, update: update, reason: .unanswered) { error in
+                            completion(error)
+                        }
                     case .failure(let error):
-                        print(error)
+                        self.failedIncomingCall(with: inUUID, update: update, reason: .failed) { error in
+                            completion(error)
+                        }
                     }
                 }
             } else {
@@ -375,6 +382,21 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                     }
                 }
             }
+        } else {
+            self.failedIncomingCall(with: inUUID, update: update, reason: .failed) { error in
+                completion(error)
+            }
+        }
+    }
+
+    func failedIncomingCall(with uuid: UUID, update: CXCallUpdate, reason: CXCallEndedReason, completion: @escaping (Result<Void, Error>) -> Void) {
+        self.provider?.reportNewIncomingCall(with: uuid, update: update) { error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                self.provider?.reportCall(with: uuid, endedAt: Date(), reason: reason)
+                completion(.success(()))
+            }
         }
     }
     
@@ -389,9 +411,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             let endCallAction = CXEndCallAction.init(call:uuid)
             let transaction = CXTransaction.init()
             transaction.addAction(endCallAction)
+            self.postCallStatus(.ended)
             requestTransaction(transaction: transaction) { success in
                 SocketSignaling.shared.setCallState(.missed)
-                self.postCallStatus(.ended)
                 SocketSignaling.shared.releaseWebrtc()
                 self.dismissCallScreen()
                 self.currentCall = nil
@@ -440,7 +462,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             if (call.callType == .OUTGOING && (call.callStatus == .connecting || call.callStatus == .calling)) {
                 cancelCall(uuid: uuid)
             } else {
-                print("end call")
+                print("end call from End Active Call")
                 endCall(uuid: uuid)
             }
         }
@@ -452,6 +474,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     func callConnected() {
         self.postCallStatus(.connected)
+        if (!audioSessionConfigured) {
+            self.configureAudioSession()
+        }
     }
     
     func callRejected() {
@@ -471,6 +496,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func callBusy() {
+        print("call busy")
         if let uuid = currentCall {
             let endCallAction = CXEndCallAction.init(call:uuid)
             let transaction = CXTransaction.init()
@@ -498,13 +524,14 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     }
     
     func rejectCall(uuid: UUID) {
+        print("reject call")
         self.cancelIncomingCallTimer(for: uuid)
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
+        self.postCallStatus(.ended)
         requestTransaction(transaction: transaction) { success in
             SocketSignaling.shared.rejectCall()
-            self.postCallStatus(.ended)
             self.calls.removeValue(forKey: uuid)
         }
     }
@@ -560,9 +587,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
+        self.postCallStatus(.ended)
         requestTransaction(transaction: transaction) { success in
             SocketSignaling.shared.setCallState(.ended)
-            self.postCallStatus(.ended)
             if (self.currentCall == uuid) {
                 SocketSignaling.shared.releaseWebrtc()
                 self.dismissCallScreen()
@@ -580,6 +607,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         let endCallAction = CXEndCallAction.init(call:uuid)
         let transaction = CXTransaction.init()
         transaction.addAction(endCallAction)
+        self.postCallStatus(.ended)
         requestTransaction(transaction: transaction) { success in
             self.postCallStatus(callState)
             if (self.currentCall == uuid) {
@@ -601,6 +629,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         cancelIncomingCallTimer(for: action.callUUID)
+        
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if (!self.screenIsShown) {
                 self.showCallScreen(uuid: action.callUUID ,callStatus: "connecting")
@@ -612,12 +641,22 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         
         for (uuid, _) in self.calls {
             if (uuid != action.callUUID) {
+                print("end call cause uuid not same")
                 self.endCall(uuid: uuid)
             } else {
                 //self.currentCall = action.callUUID
                 SocketSignaling.shared.answerCall() {
+                    self.configureAudioSession(false)
                     self.calls[action.callUUID]?.callStatus = .connected
                     self.postCallStatus(.connected)
+                    
+                    // Check mic permission after answering
+                    self.requestMicrophonePermission { granted in
+                        if !granted {
+                            print("mic permission not granted")
+                            self.sendMicPermissionNotification()
+                        }
+                    }
                 }
             }
         }
@@ -638,7 +677,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     func provider(_ provider: CXProvider, perform action: CXSetMutedCallAction) {
         let success = SocketSignaling.shared.muteCall(action.isMuted)
-        print("mute \(success)")
         let session = AVAudioSession.sharedInstance()
         defaultVolume = session.inputGain
         /*if session.isInputGainSettable {
@@ -670,13 +708,25 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     func provider(_ provider: CXProvider, didDeactivate audioSession: AVAudioSession) {
         print("Audio session deactivated")
+        audioSessionConfigured = false
         // WebRTC cleanup is handled by endCall/endedCall flows instead.
     }
     
     func provider(_ provider: CXProvider, perform action: CXEndCallAction) {
-        if (calls[action.callUUID]?.callStatus == .incoming) {
-            rejectCall()
+        //if (calls[action.callUUID]?.callStatus == .incoming) {
+        //    rejectCall()
+        //}
+        if (self.callStatus != .ended) {
+            postCallStatus(.ended)
+            SocketSignaling.shared.setCallState(.ended)
+            if (self.currentCall == action.callUUID) {
+                SocketSignaling.shared.releaseWebrtc()
+                self.dismissCallScreen()
+                self.currentCall = nil
+            }
+            self.calls.removeValue(forKey: action.callUUID)
         }
+        audioSessionConfigured = false
         cancelledCalls.removeAll()
         action.fulfill()
     }
@@ -692,11 +742,22 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         }
     }
     
+    private func sendMicPermissionNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = self.metaData["call_mic_permission_title"] ?? "Microphone Access Required"
+        content.body = self.metaData["call_mic_permission_message"] ?? "Please enable microphone access in Settings to allow the call audio to work."
+        content.sound = .default
+        
+        let request = UNNotificationRequest(identifier: "MicPermissionDenied", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
+
     private func postNetworkStatus(_ status: String, internetType: Bool = false) {
         NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["error" : status, "internet": internetType])
     }
     
-    private func configureAudioSession() {
+    private func configureAudioSession(_ setActive: Bool = true) {
+        audioSessionConfigured = true
         let audioSession = AVAudioSession.sharedInstance()
         do {
             if audioSession.category != .playAndRecord {
@@ -706,9 +767,11 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             if audioSession.mode != .voiceChat {
                 try audioSession.setMode(.voiceChat)
             }
-            try audioSession.setActive(true)
+            if (setActive) {
+                try audioSession.setActive(true)
+            }
         } catch {
-            print("Error configuring AVAudioSession: \(error.localizedDescription)")
+            print("Configuring AVAudioSession Failed: \(error.localizedDescription)")
         }
     }
     

@@ -24,6 +24,7 @@ public class CallScreenViewController: UIViewController {
     var statusLabel = UILabel()
     private let avatarImageView = UIImageView()
     private let connectionLabel = UILabel()
+    private let micPermissionLabel = UILabel()
     private var incomingButtonStack: UIStackView!
     private var connectedButtonStack: UIStackView!
     
@@ -48,23 +49,50 @@ public class CallScreenViewController: UIViewController {
     }
     
     private func requestMicrophonePermission(completion: @escaping (Bool) -> Void) {
-        switch AVAudioSession.sharedInstance().recordPermission {
-        case .granted:
-            completion(true)
-            
-        case .denied:
-            completion(false)
-            
-        case .undetermined:
-            AVAudioSession.sharedInstance().requestRecordPermission { granted in
+        let session = AVAudioSession.sharedInstance()
+        if #available(iOS 17.0, *) {
+            switch session.recordPermission {
+            case .granted:
+                completion(true)
+            case .denied:
+                completion(false)
+            case .undetermined:
+                session.requestRecordPermission { granted in
+                    DispatchQueue.main.async {
+                        completion(granted)
+                    }
+                }
+            @unknown default:
+                completion(false)
+            }
+        } else {
+            // Fallback for older iOS versions
+            session.requestRecordPermission { granted in
                 DispatchQueue.main.async {
                     completion(granted)
                 }
             }
-            
-        @unknown default:
-            completion(false)
         }
+    }
+
+    private func showMicPermissionSettingsAlert() {
+        let alert = UIAlertController(
+            title: self.metaData["call_mic_permission_title"] ?? "Microphone Access Required",
+            message: self.metaData["call_mic_permission_message"] ?? "Please enable microphone access in Settings to allow the call audio to work.",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: self.metaData["call_btn_settings"] ?? "Settings", style: .default, handler: { _ in
+            if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                if UIApplication.shared.canOpenURL(settingsUrl) {
+                    UIApplication.shared.open(settingsUrl, options: [:], completionHandler: nil)
+                }
+            }
+        }))
+        
+        alert.addAction(UIAlertAction(title: self.metaData["call_btn_cancel"] ?? "Cancel", style: .cancel, handler: nil))
+        
+        self.present(alert, animated: true, completion: nil)
     }
     
     public override func viewDidLoad() {
@@ -125,11 +153,17 @@ public class CallScreenViewController: UIViewController {
         monitor.start(queue: queue)
 
         setupUI()
-        requestMicrophonePermission { granted in
-            /*if !granted {
-                CallManager.sharedInstance.endCallOnDeniedMic()
-                self.showErrorConnectionAlert(text: self.metaData["call_failed_mic_permission_denied"] ?? "Call failed, mic permission denied",icon: nil)
-            }*/
+        requestMicrophonePermission { [weak self] granted in
+            if !granted {
+                self?.showMicPermissionSettingsAlert()
+                DispatchQueue.main.async {
+                    self?.micPermissionLabel.text = self?.metaData["call_mic_permission_denied"] ?? "Microphone access is disabled"
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self?.micPermissionLabel.text = ""
+                }
+            }
         }
         NotificationCenter.default.addObserver(self, selector: #selector(handleCallStatus(_:)), name: .callStatusChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(callProfileSet(_:)), name: .callProfileSet, object: "")
@@ -403,7 +437,13 @@ public class CallScreenViewController: UIViewController {
         connectionLabel.textColor = .red
         connectionLabel.textAlignment = .center
         
-        let nameLabelStack = UIStackView(arrangedSubviews: [nameLabel, connectionLabel])
+        micPermissionLabel.text = ""
+        micPermissionLabel.font = UIFont.boldSystemFont(ofSize: 14)
+        micPermissionLabel.textColor = .systemRed
+        micPermissionLabel.textAlignment = .center
+        micPermissionLabel.numberOfLines = 0
+        
+        let nameLabelStack = UIStackView(arrangedSubviews: [nameLabel, connectionLabel, micPermissionLabel])
         nameLabelStack.axis = .vertical
         nameLabelStack.spacing = 8
         nameLabelStack.alignment = .center
@@ -565,11 +605,9 @@ public class CallScreenViewController: UIViewController {
             iconColor: .white,
             backgroundColor: .red
         ) {
-            //if CallState.shared.currentCallUUID != nil {
-            //CallService.sharedInstance.declineCall()
-            //} else {
-            //    self.endedCall()
-            //}
+            if let uuid = CallManager.sharedInstance.currentCall {
+                CallManager.sharedInstance.rejectCall(uuid: uuid)
+            }
         }
         endCallButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
         let answerCallButton = CircleIconButton(
@@ -578,9 +616,11 @@ public class CallScreenViewController: UIViewController {
             iconColor: .white,
             backgroundColor: .green
         ) {
-            //if let uuid = CallState.shared.currentCallUUID {
-            //CallService.sharedInstance.answerCall()
-            //}
+            if let uuid = CallManager.sharedInstance.currentCall {
+                let answerCallAction = CXAnswerCallAction(call: uuid)
+                let transaction = CXTransaction(action: answerCallAction)
+                CallManager.sharedInstance.requestTransaction(transaction: transaction) { _ in }
+            }
         }
         answerCallButton.widthAnchor.constraint(equalToConstant: 64).isActive = true
         let actionButtonStack = UIStackView(arrangedSubviews: [endCallButton, answerCallButton])

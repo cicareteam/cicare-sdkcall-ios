@@ -80,6 +80,9 @@ class SocketSignaling: NSObject {
     
     func connect(wssUrl: URL, token: String, uuid: UUID, completion: @escaping (SocketIOClientStatus) -> Void) {
         self.uuid = uuid
+        if (self.callState == .ended) {
+            self.callState = nil
+        }
         isCallConnected = false
         webrtcManager = WebRTCManager()
         self.webrtcManager?.callback = self
@@ -263,7 +266,6 @@ class SocketSignaling: NSObject {
         socket?.on("ANSWER_OK") { _, _ in
         }
         socket?.on("MISSED_CALL") { [weak self] _, _ in
-        print("GOT MISSED SIGNAL FROM SERVER")
             CallManager.sharedInstance.missedCall()
             self?.close()
         }
@@ -297,7 +299,6 @@ class SocketSignaling: NSObject {
             CallManager.sharedInstance.callRinging()
         }
         socket?.on("HANGUP") { [weak self] _, _ in
-            print("GOT HANGUP SIGNAL FROM SERVER")
             guard let self = self else { return }
             if (self.callState != .ended && self.callState != .refused  && self.callState != .busy) {
                 CallManager.sharedInstance.endedCall(uuid: self.uuid, callState: .ended)
@@ -503,6 +504,7 @@ class SocketSignaling: NSObject {
         socket?.disconnect()
         socket?.removeAllHandlers()
         socket = nil
+        print("socket cleared")
     }
     
     deinit {
@@ -535,6 +537,8 @@ extension SocketSignaling: WebRTCEventCallback {
             if self.isConnected && (self.callState == .connected || self.callState == .connecting) {
                 print("ICE failed but socket is connected. Attempting ICE restart...")
                 reinitWebRTC()
+            } else if !self.isConnected{
+                self.webrtcManager?.close()
             }
             break
         case .closed:
