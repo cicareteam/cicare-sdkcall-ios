@@ -299,7 +299,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         }
     }
     
-    func reportIncomingCall(
+    /*func reportIncomingCall(
         callerId: String,
         callerName: String,
         avatarUrl: String,
@@ -374,6 +374,108 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                         }
                     }
                 }
+            }
+        }
+    }*/
+
+    func reportIncomingCall(
+        callerId: String,
+        callerName: String,
+        avatarUrl: String,
+        metaData: [String:String],
+        onMessageClicked: (() -> Void)? = nil,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        if self.provider == nil {
+            self.setupCallKit()
+        }
+
+        let inUUID = UUID()
+        self.metaData = metaData
+
+        let update = CXCallUpdate()
+        update.remoteHandle = CXHandle(type: .generic, value: callerName)
+        update.localizedCallerName = callerName
+        update.hasVideo = false
+
+        guard let alertData = metaData["alert_data"] else {
+            self.failedIncomingCall(with: inUUID, update: update, reason: .failed, completion: completion)
+            return
+        }
+        let isBusy = (self.currentCall != nil && self.isInCall)
+        self.provider?.reportNewIncomingCall(with: inUUID, update: update) { [weak self] error in
+            guard let self = self else { return }
+
+            if let error = error {
+                completion(.failure(error))
+                return
+            }
+
+            if isBusy {
+                // CallKit was notified; immediately end and send busy to server async.
+                self.provider?.reportCall(with: inUUID, endedAt: Date(), reason: .unanswered)
+                completion(.success(()))
+                self.extractServerData(callerId: callerId, alertData: alertData) { result in
+                    if case .success(let data) = result {
+                        SocketSignaling.shared.sendBusyCall(token: data.token)
+                    }
+                }
+                return
+            }
+
+            // Non-busy: register state and start ring timeout before any async work.
+            self.calls[inUUID] = CallInfo(
+                callId: callerId,
+                hasVideo: false,
+                callName: callerName,
+                callAvatar: avatarUrl,
+                callType: .INCOMING,
+                callStatus: .incoming
+            )
+            self.currentCall = inUUID
+            self.startIncomingCallTimer(for: inUUID)
+            self.postCallStatus(.incoming)
+
+            completion(.success(()))
+
+            self.extractServerData(callerId: callerId, alertData: alertData) { [weak self] result in
+                guard let self = self else { return }
+                switch result {
+                case .success(let data):
+                    guard let wssUrl = URL(string: data.server) else {
+                        self.endIncomingOnPhase2Failure(uuid: inUUID)
+                        return
+                    }
+                    SocketSignaling.shared.connect(wssUrl: wssUrl, token: data.token, uuid: inUUID) { status in
+                        if status == .connected {
+                            SocketSignaling.shared.emit("RINGING_CALL", [:])
+                        }
+                    }
+                case .failure(let error):
+                    print("Failed to extract server data: \(error)")
+                    self.endIncomingOnPhase2Failure(uuid: inUUID)
+                }
+            }
+        }
+    }
+
+    private func endIncomingOnPhase2Failure(uuid: UUID) {
+        self.cancelIncomingCallTimer(for: uuid)
+        self.provider?.reportCall(with: uuid, endedAt: Date(), reason: .failed)
+        self.calls.removeValue(forKey: uuid)
+        if self.currentCall == uuid {
+            self.currentCall = nil
+            self.dismissCallScreen()
+        }
+    }
+
+    func failedIncomingCall(with uuid: UUID, update: CXCallUpdate, reason: CXCallEndedReason, completion: @escaping (Result<Void, Error>) -> Void) {
+        self.provider?.reportNewIncomingCall(with: uuid, update: update) { error in
+            if let error = error {
+                completion(.failure(error))
+            } else {
+                self.provider?.reportCall(with: uuid, endedAt: Date(), reason: reason)
+                completion(.success(()))
             }
         }
     }
