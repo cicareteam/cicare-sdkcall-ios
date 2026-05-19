@@ -437,6 +437,7 @@ class SocketSignaling: NSObject {
     }
     
     public func initOffer() {
+        print("initOffer")
         if let webrtc = self.webrtcManager {
             if (!webrtc.isPeerConnectionActive()) {
                 webrtc.reinit()
