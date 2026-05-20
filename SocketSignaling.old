@@ -36,13 +36,13 @@ class SocketSignaling: NSObject {
     
     private var connectStartTime: Date?
     private var pingStartTime: Date?
+    private var pongTimeoutTimer: Timer?
+    private let pongTimeout: TimeInterval = 12.0  // 12s without PONG ⇒ assume socket dead
     private var timer: Timer?
     private var callState: CallStatus?
-    
+
     private var uuid: UUID?
 
-    private var isIceClosed = false  
-    
     private let stateQueue = DispatchQueue(label: "com.cicare.signaling.state")
     private var _isConnected = false
     private var isConnected: Bool {
@@ -50,14 +50,20 @@ class SocketSignaling: NSObject {
         set { stateQueue.sync { _isConnected = newValue } }
     }
     private var pendingActions: [() -> Void] = []
-    
+
     private var isCallConnected = false
     private var isReconnecting = false
-    private let reconnectMax = 4
+    private let reconnectMax = 8
     private var reconnectAttempt: Int = 0
-    
+    private var isEnding: Bool = false
+
+    /// Last observed ICE state. Tracked so that when the server requests RECONNECTING we
+    /// can skip the costly WebRTC reinit if audio is still flowing (ICE .connected /
+    /// .completed). New peer connections start at .new and transition upwards.
+    private var currentIceState: RTCIceConnectionState = .new
+
     private var disconnectTimer: Timer?
-    private let disconnectGracePeriod: TimeInterval = 30.0  // 35 detik grace period (increased for better stability)
+    private let disconnectGracePeriod: TimeInterval = 30.0  // 30s grace period
     private var disconnectStartTime: Date?  // Track when disconnect started
     
     override init() {
@@ -81,53 +87,70 @@ class SocketSignaling: NSObject {
     }
     
     func connect(wssUrl: URL, token: String, uuid: UUID, completion: @escaping (SocketIOClientStatus) -> Void) {
+        // Single-shot completion guard: the underlying socket emits statusChange / connect /
+        // error / disconnect many times during a single lifecycle, but our caller expects to
+        // act on the first definitive signal only.
+        let completionLock = NSLock()
+        var completionFired = false
+        let safeCompletion: (SocketIOClientStatus) -> Void = { status in
+            completionLock.lock()
+            defer { completionLock.unlock() }
+            guard !completionFired else { return }
+            completionFired = true
+            completion(status)
+        }
+
         self.uuid = uuid
         if (self.callState == .ended) {
             self.callState = nil
         }
         isCallConnected = false
+        isEnding = false
+
+        // Tear down any previous WebRTC instance before creating a new one. Leaving the old
+        // peer connection alive would leak audio resources and native handles.
+        webrtcManager?.close()
         webrtcManager = WebRTCManager()
         self.webrtcManager?.callback = self
+
+        // SocketIO handles auto-reconnect internally; our custom counter is aligned with its
+        // `reconnectAttempts` so both give up at the same time (no competing end-call logic).
         manager = SocketManager(socketURL: wssUrl,
                                     config: [.log(false),
                                              .compress,
                                              .reconnectWait(2),
                                              .reconnectWaitMax(5),
-                                             .reconnectAttempts(8),
+                                             .reconnectAttempts(reconnectMax),
                                              .forceNew(true),
                                              .forceWebsockets(true),
                                              .reconnects(true),
                                              .connectParams(["token": token])])
         socket = manager?.socket(forNamespace: "/")
-        
+
         connectStartTime = Date()
-        
+
         socket?.removeAllHandlers()
 
-        socket?.on(clientEvent: .statusChange) { [weak self] data, _ in
-                if let status = data.first as? SocketIOClientStatus {
-                    completion(status)
-                }
-                print("connecting", data)
+        socket?.on(clientEvent: .statusChange) { data, _ in
+            print("connecting", data)
         }
         socket?.on(clientEvent: .connect) { [weak self] _, _ in
             guard let self = self else { return }
+            print("connected")
             if let start = self.connectStartTime {
                 let elapsed = Date().timeIntervalSince(start)
                 if elapsed > 1.5 {
                     NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "weak"])
                 } else {
-                    if (!self.isReconnecting) {
-                        NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
-                    }
+                    NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
                 }
             }
-            
+
             self.isConnected = true
             self.reconnectAttempt = 0
-            
+
             self.cancelDisconnectTimer()
-            
+
             if (self.isReconnecting) {
                 CallManager.sharedInstance.postCallStatus(.reconnecting)
                 self.emit("RECONNECT", [:])
@@ -139,14 +162,18 @@ class SocketSignaling: NSObject {
             }
             self.pendingActions.removeAll()
             self.startPingMonitoring()
-            completion(.connected)
+            safeCompletion(.connected)
         }
         socket?.on(clientEvent: .disconnect) { [weak self] _, _ in
             guard let self = self else { return }
             self.isConnected = false
-            if (self.callState == CallStatus.connected) {
+            self.cancelPongTimeout()
+            if self.callState == CallStatus.connected || self.callState == CallStatus.connecting {
+                // We had (or were establishing) an active call. Let SocketIO try to
+                // reconnect, but if it can't recover before disconnectGracePeriod expires,
+                // the grace timer will end the call so it doesn't zombie.
                 CallManager.sharedInstance.postCallStatus(.reconnecting)
-                //self.startDisconnectGracePeriod()
+                self.startDisconnectGracePeriod()
             } else {
                 self.reconnectAttempt = self.reconnectMax
             }
@@ -157,59 +184,71 @@ class SocketSignaling: NSObject {
             NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
             self.isReconnecting = true
         }
-        socket?.on(clientEvent: .error) { [weak self] data, ack in
-            
+        socket?.on(clientEvent: .error) { [weak self] data, _ in
+
             guard let self = self else { return }
             print("error", data)
 
             let errorDescription = self.parseSocketError(data)
-
             let reason = self.classifySocketErrorDescription(errorDescription)
 
             self.isConnected = false
-            
-            switch reason {
 
+            switch reason {
             case .network:
                 if self.isReconnecting {
-                    //self.startDisconnectGracePeriod()
                     NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
                     self.reconnectAttempt += 1
                     print("reconnecting attempt", self.reconnectAttempt)
                 }
 
             case .server:
-                CallManager.sharedInstance.endActiveCall()
-                self.isConnected = false
-                self.manager = nil
-                self.socket = nil
-                completion(.disconnected)
-                self.close()
+                self.finishAndEndCall(notifyLost: false, completion: safeCompletion)
                 print("ERROR SERVER")
+                return
 
             case .unknown:
                 if self.isReconnecting {
-                    //self.startDisconnectGracePeriod()
                     self.reconnectAttempt += 1
                 }
                 print("ERROR UNKNOWN")
             }
-            
+
             if (self.reconnectAttempt >= self.reconnectMax) {
-                NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "lost"])
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    CallManager.sharedInstance.endActiveCall()
-                    self.isConnected = false
-                    self.manager = nil
-                    self.socket = nil
-                    completion(.disconnected)
-                    self.close()
-                }
+                self.finishAndEndCall(notifyLost: true, completion: safeCompletion)
             }
         }
 
         registerHandlers()
         socket?.connect()
+    }
+
+    /// Centralised teardown when we have to give up on the call. Idempotent — guarded by
+    /// `isEnding` to prevent multiple end-call paths from racing (e.g. server error + max
+    /// reconnect attempts firing back-to-back + grace period expiry).
+    private func finishAndEndCall(notifyLost: Bool, completion: ((SocketIOClientStatus) -> Void)? = nil) {
+        guard !isEnding else { return }
+        isEnding = true
+
+        if notifyLost {
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "lost"])
+        }
+
+        let action = { [weak self] in
+            guard let self = self else { return }
+            CallManager.sharedInstance.endActiveCall()
+            self.isConnected = false
+            self.manager = nil
+            self.socket = nil
+            completion?(.disconnected)
+            self.close()
+        }
+
+        if notifyLost {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: action)
+        } else {
+            action()
+        }
     }
     
     public func reconnect() {
@@ -222,26 +261,34 @@ class SocketSignaling: NSObject {
         guard disconnectTimer == nil else {
             return
         }
-        
+
         disconnectStartTime = Date()
         print("Starting disconnect grace period (\(disconnectGracePeriod)s)")
-        
-        disconnectTimer = Timer.scheduledTimer(withTimeInterval: disconnectGracePeriod, repeats: false) { [weak self] _ in
-            guard let self = self else { return }
-            
-            if !self.isConnected {
-                if let start = self.disconnectStartTime {
-                    let elapsed = Date().timeIntervalSince(start)
-                    print("Grace period expired after \(String(format: "%.1f", elapsed))s, closing call...")
+
+        // Timer must be scheduled on the main runloop so invalidation from any thread is
+        // well-defined; SocketIO delegates and our pong-timeout handler may invoke this
+        // function from non-main queues.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.disconnectTimer == nil else { return }
+            self.disconnectTimer = Timer.scheduledTimer(withTimeInterval: self.disconnectGracePeriod, repeats: false) { [weak self] _ in
+                guard let self = self else { return }
+                let start = self.disconnectStartTime
+                self.disconnectTimer = nil
+                self.disconnectStartTime = nil
+
+                if self.isConnected {
+                    print("Connected before grace period expired")
+                    return
                 }
-                NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["error": "call_failed_no_connection"])
-                self.close()
-            } else {
-                print("Connected before grace period expired")
+
+                if let s = start {
+                    let elapsed = Date().timeIntervalSince(s)
+                    print("Grace period expired after \(String(format: "%.1f", elapsed))s — ending call (connection lost)")
+                }
+                // Centralised teardown: ends the active call via CallManager, then closes
+                // the socket. Idempotent — won't double-end if .error path already fired.
+                self.finishAndEndCall(notifyLost: true)
             }
-            
-            self.disconnectTimer = nil
-            self.disconnectStartTime = nil
         }
     }
     
@@ -255,8 +302,16 @@ class SocketSignaling: NSObject {
     }
     
     private func reinitWebRTC() {
-        webrtcManager?.reinit()
-        initOffer()
+        // Hop off the WebRTC signaling thread before tearing down the peer connection. ICE
+        // state delegate callbacks fire on that thread, and calling pc.close() / creating a
+        // new peer from inside the callback can race with the thread's own shutdown path
+        // (RTCShutdownInternal* crash). Main queue is safe because the factory's threads
+        // are separate from the main thread.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.webrtcManager?.reinit()
+            self.initOffer()
+        }
     }
     
     private func registerHandlers() {
@@ -284,11 +339,23 @@ class SocketSignaling: NSObject {
         }
         socket?.on("RECONNECTING") { [weak self] _, _ in
             guard let self = self else { return }
-            if (isIceClosed) {
+            // Decide whether to renegotiate WebRTC: only renegotiate if ICE is actually
+            // broken. If ICE is still .connected/.completed, audio kept flowing through
+            // the signaling outage and a reinit would unnecessarily interrupt the call.
+            let iceHealthy = self.currentIceState == .connected || self.currentIceState == .completed
+            let callActive = self.callState == .connected || self.callState == .connecting
+
+            if callActive && !iceHealthy {
+                print("RECONNECTING: ICE is \(self.currentIceState.rawValue) — reinit WebRTC")
                 self.reinitWebRTC()
+            } else if iceHealthy {
+                print("RECONNECTING: ICE still healthy — skipping WebRTC reinit")
+            } else {
+                print("RECONNECTING: call not active (callState=\(String(describing: self.callState))) — skipping reinit")
             }
-            //CallManager.sharedInstance.postCallStatus(.reconnected)
-            
+
+            CallManager.sharedInstance.postCallStatus(.reconnected)
+            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
         }
         /*socket?.on("RECONNECTED") { _, _ in
             CallManager.sharedInstance.postCallStatus(.connected)
@@ -358,15 +425,21 @@ class SocketSignaling: NSObject {
     }
 
     private func sendPing() {
-        if (pingStartTime == nil) {
-            pingStartTime = Date()
-            socket?.emit("PING")
-        } else {
-            handlePong()
-        }
+        // Bail out if the socket is gone or we've already torn down — otherwise the ping
+        // monitor timer can keep scheduling pong timeouts after the call has ended,
+        // producing endless "PONG timeout" / "Tried emitting when not connected" log spam.
+        guard socket != nil, isConnected, !isEnding else { return }
+        // If a previous PING is still outstanding, skip sending another one — the pong
+        // timeout will fire to declare the socket dead. Previously this branch faked a pong
+        // and falsely reported a healthy connection while the link was actually gone.
+        guard pingStartTime == nil else { return }
+        pingStartTime = Date()
+        startPongTimeout()
+        socket?.emit("PING")
     }
 
     private func handlePong() {
+        cancelPongTimeout()
         guard let start = pingStartTime else { return }
         let latency = Date().timeIntervalSince(start) * 1000
         if (!self.isReconnecting) {
@@ -377,6 +450,44 @@ class SocketSignaling: NSObject {
             }
         }
         pingStartTime = nil
+    }
+
+    private func startPongTimeout() {
+        pongTimeoutTimer?.invalidate()
+        // Schedule on main runloop so the timer fires reliably regardless of which queue
+        // sendPing was invoked from, and so invalidate() is well-defined from any thread.
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.pongTimeoutTimer = Timer.scheduledTimer(withTimeInterval: self.pongTimeout, repeats: false) { [weak self] _ in
+                guard let self = self else { return }
+                // Bail if we've already torn down — prevents the spam loop where ping timer
+                // keeps firing after the call has ended.
+                guard self.socket != nil, !self.isEnding else {
+                    self.pingStartTime = nil
+                    return
+                }
+                print("PONG timeout (\(self.pongTimeout)s) — treating socket as disconnected")
+                self.pingStartTime = nil
+                // Don't post "lost" yet — we're entering the reconnect grace window, not
+                // giving up. Final "lost" + end-call comes from grace expiry.
+                NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
+                if self.callState == .connected {
+                    CallManager.sharedInstance.postCallStatus(.reconnecting)
+                }
+                // Start the grace period explicitly: socket?.disconnect() below will fire
+                // the .disconnect handler which also starts it, but starting here too is
+                // idempotent (guarded by `disconnectTimer == nil`) and ensures the grace
+                // window begins even if SocketIO doesn't synchronously emit .disconnect.
+                self.startDisconnectGracePeriod()
+                self.isConnected = false
+                self.socket?.disconnect()
+            }
+        }
+    }
+
+    private func cancelPongTimeout() {
+        pongTimeoutTimer?.invalidate()
+        pongTimeoutTimer = nil
     }
     
     func emit(_ event: String, _ data: [String: Any], completion: (() -> Void)? = nil) {
@@ -499,17 +610,17 @@ class SocketSignaling: NSObject {
     }
     
     func close() {
-        let wasConnected = isConnected
         isConnected = false
         isReconnecting = false
         self.callState = .ended
         self.reconnectAttempt = 0
+        self.pendingActions.removeAll()
+        self.pingStartTime = nil
         cancelDisconnectTimer()
+        cancelPongTimeout()
         timer?.invalidate()
         timer = nil
 
-        isIceClosed = false
-        
         socket?.disconnect()
         socket?.removeAllHandlers()
         socket = nil
@@ -534,38 +645,38 @@ extension SocketSignaling: WebRTCEventCallback {
         // optional: map state to callEventListener if needed
     }
     func onIceConnectionStateChanged(state: RTCIceConnectionState) {
-        
+        currentIceState = state
+
         switch state {
         case .disconnected:
             print("ice state disconnected")
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "reconnecting"])
             break
         case .failed:
             print("ice state failed")
             if self.isConnected && (self.callState == .connected || self.callState == .connecting) {
                 print("ICE failed but socket is connected. Attempting ICE restart...")
                 reinitWebRTC()
-            } else if !self.isConnected{
-                self.webrtcManager?.close()
             }
+            // NOTE: do NOT call webrtcManager?.close() here when the socket is also down.
+            // Closing from inside the signaling-thread delegate would synchronously fire
+            // the .closed state, which previously kicked off another reinit() — producing
+            // a teardown cascade and the RTCShutdownInternal* crash on signaling thread.
+            // When the socket is dead, the call is being ended anyway; the cleanup path
+            // (close() / releaseWebrtc) will be invoked from the main flow.
             break
         case .closed:
             print("ice state closed")
-            //NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "lost_connection"])
+            // Only reinit if the socket is healthy AND the call is still alive. Without the
+            // isConnected guard, .closed events triggered by our own teardown path would
+            // trigger an orphan reinit that crashes when the call has already ended.
             if self.isConnected && (self.callState == .connected || self.callState == .connecting) {
                 reinitWebRTC()
-            } else {
-                isIceClosed = true
             }
             break
         case .connected, .completed:
             print("ice state connected")
-            isIceClosed = false
-            NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
-            //NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "connected"])
             break
         default:
-            //NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["signalStrength": "other"])
             break
         }
     }

@@ -25,57 +25,21 @@ class WebRTCManager: NSObject {
     private var audioTrack: RTCAudioTrack?
     private static var sslInitialized = false
     private let iceServers = [RTCIceServer(urlStrings: ["stun:stun.l.google.com:19302"])]
-
+    
     // Track mute state to preserve across reconnections
     private var isMicMuted: Bool = false
     private var isSpeakerOn: Bool = false
-
-    // Reentrancy guard for reinit(): WebRTC delegate callbacks fire on the factory's
-    // signaling thread, and a cascade (e.g. .failed -> close -> .closed -> reinit) can
-    // trigger reinit twice in flight. The second call must be a no-op to avoid releasing
-    // the peer connection out from under the first call.
-    private let reinitLock = NSLock()
-    private var isReinitInProgress = false
-
+    
     override init() {
         super.init()
         initializePeerConnectionFactory()
         createPeerConnection()
     }
-
+    
     func reinit() {
-        reinitLock.lock()
-        if isReinitInProgress {
-            reinitLock.unlock()
-            print("Reinit already in progress, skipping")
-            return
-        }
-        isReinitInProgress = true
-        reinitLock.unlock()
-        defer {
-            reinitLock.lock()
-            isReinitInProgress = false
-            reinitLock.unlock()
-        }
-
         // State will be preserved (isMicMuted not reset)
         print("Reinitializing WebRTC, mute state: \(isMicMuted)")
-
-        // Tear down the old peer connection cleanly before creating a new one.
-        // CRITICAL: do NOT recreate peerConnectionFactory here. The factory owns the
-        // network/worker/signaling threads, and releasing the old factory while we are
-        // still executing inside one of its delegate callbacks (e.g. onIceConnectionState
-        // .closed handler) causes RTCShutdownInternal* crashes (EXC_BAD_ACCESS on signaling
-        // thread). The factory is one-shot; only the peer connection rotates.
-        audioTrack = nil
-        if let pc = peerConnection, pc.signalingState != .closed {
-            pc.close()
-        }
-        peerConnection = nil
-
-        if peerConnectionFactory == nil {
-            initializePeerConnectionFactory()
-        }
+        initializePeerConnectionFactory()
         createPeerConnection()
     }
 

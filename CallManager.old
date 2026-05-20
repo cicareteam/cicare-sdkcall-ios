@@ -533,9 +533,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.clearCurrentCallIfMatches(uuid)
                 self.removeCall(uuid)
                 self.cancelIncomingCallTimer(for: uuid)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    SocketSignaling.shared.close()
-                }
             }
         }
     }
@@ -604,9 +601,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                     self.dismissCallScreen()
                     self.clearCurrentCallIfMatches(uuid)
                 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    SocketSignaling.shared.close()
-                }
             }
         }
     }
@@ -623,9 +617,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 if self.currentCall == uuid {
                     self.dismissCallScreen()
                     self.clearCurrentCallIfMatches(uuid)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    SocketSignaling.shared.close()
                 }
             }
         }
@@ -653,9 +644,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             self.postCallStatus(.ended)
             self.removeCall(uuid)
             self.clearCurrentCallIfMatches(uuid)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                SocketSignaling.shared.close()
-            }
         }
     }
 
@@ -679,9 +667,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.clearCurrentCallIfMatches(uuid)
             }
             self.removeCall(uuid)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                SocketSignaling.shared.close()
-            }
 
             // Clean up after 2 seconds (handle late callbacks)
             DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
@@ -703,9 +688,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 SocketSignaling.shared.releaseWebrtc()
                 self.removeCall(uuid)
                 self.clearCurrentCallIfMatches(uuid)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    SocketSignaling.shared.close()
-                }
             }
         }
     }
@@ -728,11 +710,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.clearCurrentCallIfMatches(uuid)
             }
             self.removeCall(uuid)
-            // Tear down the signaling socket so its ping/pong + reconnect timers stop.
-            // Delay 0.5s lets the REQUEST_HANGUP emit flush before the socket goes away.
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                SocketSignaling.shared.close()
-            }
         }
     }
 
@@ -753,9 +730,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                 self.clearCurrentCallIfMatches(uuid)
             }
             self.removeCall(uuid)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                SocketSignaling.shared.close()
-            }
+
         }
     }
     
@@ -873,11 +848,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         }
         self.removeCall(uuid)
         self.removeCancelled(uuid)
-        // Tear down the signaling socket so ping/pong + reconnect timers stop. Delay 0.5s
-        // lets the REJECT/REQUEST_HANGUP emit flush before the socket goes away.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            SocketSignaling.shared.close()
-        }
     }
     
     func postCallStatus(_ status: CallStatus) {

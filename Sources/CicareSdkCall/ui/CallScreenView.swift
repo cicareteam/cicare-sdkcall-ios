@@ -105,12 +105,8 @@ public class CallScreenViewController: UIViewController {
                         if self.monitor.currentPath.status == .unsatisfied {
                             self.isNetworkReallyDown = true
                             DispatchQueue.main.async {
-                                /*self.showErrorConnectionAlert(
-                                    text: self.metaData["call_failed_no_connection"]
-                                    ?? "No internet connection",
-                                    icon: nil
-                                )*/
                                 self.connectionLabel.text = self.metaData["call_lost_connection"] ?? "Lost Connection..."
+                                CallManager.sharedInstance.endActiveCall()
                             }
                         }
                     }
