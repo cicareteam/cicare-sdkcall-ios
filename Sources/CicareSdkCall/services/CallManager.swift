@@ -178,6 +178,16 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
     }
+
+    private func sendMicPermissionNotification() {
+        let content = UNMutableNotificationContent()
+        content.title = self.metaData["call_mic_permission_title"] ?? "Microphone Access Required"
+        content.body = self.metaData["call_mic_permission_message"] ?? "Please enable microphone access in Settings to allow the call audio to work."
+        content.sound = .default
+        
+        let request = UNNotificationRequest(identifier: "MicPermissionDenied", content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request, withCompletionHandler: nil)
+    }
     
     private func requestTransaction(transaction : CXTransaction, completion: @escaping (Bool) -> Void) {
         
@@ -416,7 +426,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         if (self.provider == nil) {
             self.setupCallKit()
         }
-
+        self.configureAudioSession(false)
         let update = CXCallUpdate()
         update.remoteHandle = CXHandle(type: .generic, value: callerName)
         update.localizedCallerName = callerName
@@ -777,6 +787,12 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         self.postCallStatus(.connecting)
         self.updateCall(uuid: action.callUUID) { $0.callStatus = .connecting }
 
+        self.requestMicrophonePermission { granted in
+            if !granted {
+                self.sendMicPermissionNotification()
+            }
+        }
+
         let snapshot = self.calls
         for (uuid, _) in snapshot {
             if (uuid != action.callUUID) {
@@ -844,10 +860,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         let uuid = action.callUUID
         defer { action.fulfill() }
 
-        // App-initiated ends already pre-marked themselves via `markAppInitiatedEnd` before
-        // submitting the transaction; their completion blocks handle cleanup. If the marker
-        // is absent, this end was triggered by the user from CallKit's system UI (red button
-        // on lock screen / callkit notification) — we are the only place that can clean up.
         if consumeAppInitiatedEnd(uuid) {
             return
         }
@@ -873,8 +885,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         }
         self.removeCall(uuid)
         self.removeCancelled(uuid)
-        // Tear down the signaling socket so ping/pong + reconnect timers stop. Delay 0.5s
-        // lets the REJECT/REQUEST_HANGUP emit flush before the socket goes away.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             SocketSignaling.shared.close()
         }
@@ -895,7 +905,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
         NotificationCenter.default.post(name: .callNetworkChanged, object: nil, userInfo: ["error" : status, "internet": internetType])
     }
     
-    private func configureAudioSession() {
+    private func configureAudioSession(_ isActivation: Bool = true) {
         let audioSession = AVAudioSession.sharedInstance()
         do {
             if audioSession.category != .playAndRecord {
@@ -905,7 +915,9 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             if audioSession.mode != .voiceChat {
                 try audioSession.setMode(.voiceChat)
             }
-            try audioSession.setActive(true)
+            if (isActivation) {
+                try audioSession.setActive(true)
+            }
         } catch {
             print("Error configuring AVAudioSession: \(error.localizedDescription)")
         }

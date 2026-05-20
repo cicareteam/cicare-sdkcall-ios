@@ -24,6 +24,7 @@ public class CallScreenViewController: UIViewController {
     var statusLabel = UILabel()
     private let avatarImageView = UIImageView()
     private let connectionLabel = UILabel()
+    private let micPermissionLabel = UILabel()
     private var incomingButtonStack: UIStackView!
     private var connectedButtonStack: UIStackView!
     
@@ -65,6 +66,26 @@ public class CallScreenViewController: UIViewController {
         @unknown default:
             completion(false)
         }
+    }
+
+    private func showMicPermissionSettingsAlert() {
+        let alert = UIAlertController(
+            title: self.metaData["call_mic_permission_title"] ?? "Microphone Access Required",
+            message: self.metaData["call_mic_permission_message"] ?? "Please enable microphone access in Settings to allow the call audio to work.",
+            preferredStyle: .alert
+        )
+        
+        alert.addAction(UIAlertAction(title: self.metaData["call_btn_settings"] ?? "Settings", style: .default, handler: { _ in
+            if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                if UIApplication.shared.canOpenURL(settingsUrl) {
+                    UIApplication.shared.open(settingsUrl, options: [:], completionHandler: nil)
+                }
+            }
+        }))
+        
+        alert.addAction(UIAlertAction(title: self.metaData["call_btn_cancel"] ?? "Cancel", style: .cancel, handler: nil))
+        
+        self.present(alert, animated: true, completion: nil)
     }
     
     public override func viewDidLoad() {
@@ -121,11 +142,17 @@ public class CallScreenViewController: UIViewController {
         monitor.start(queue: queue)
 
         setupUI()
-        requestMicrophonePermission { granted in
-            /*if !granted {
-                CallManager.sharedInstance.endCallOnDeniedMic()
-                self.showErrorConnectionAlert(text: self.metaData["call_failed_mic_permission_denied"] ?? "Call failed, mic permission denied",icon: nil)
-            }*/
+        requestMicrophonePermission { [weak self] granted in
+            if !granted {
+                self?.showMicPermissionSettingsAlert()
+                DispatchQueue.main.async {
+                    self?.micPermissionLabel.text = self?.metaData["call_mic_permission_denied"] ?? "Microphone access is disabled"
+                }
+            } else {
+                DispatchQueue.main.async {
+                    self?.micPermissionLabel.text = ""
+                }
+            }
         }
         NotificationCenter.default.addObserver(self, selector: #selector(handleCallStatus(_:)), name: .callStatusChanged, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(callProfileSet(_:)), name: .callProfileSet, object: "")
@@ -399,7 +426,13 @@ public class CallScreenViewController: UIViewController {
         connectionLabel.textColor = .red
         connectionLabel.textAlignment = .center
         
-        let nameLabelStack = UIStackView(arrangedSubviews: [nameLabel, connectionLabel])
+        micPermissionLabel.text = ""
+        micPermissionLabel.font = UIFont.boldSystemFont(ofSize: 14)
+        micPermissionLabel.textColor = .systemRed
+        micPermissionLabel.textAlignment = .center
+        micPermissionLabel.numberOfLines = 0
+        
+        let nameLabelStack = UIStackView(arrangedSubviews: [nameLabel, connectionLabel, micPermissionLabel])
         nameLabelStack.axis = .vertical
         nameLabelStack.spacing = 8
         nameLabelStack.alignment = .center

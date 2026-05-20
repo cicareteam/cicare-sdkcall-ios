@@ -305,10 +305,9 @@ class SocketSignaling: NSObject {
             CallManager.sharedInstance.callRinging()
         }
         socket?.on("HANGUP") { [weak self] _, _ in
-            print("GOT HANGUP SIGNAL FROM SERVER")
             guard let self = self else { return }
-            if (self.callState != .ended && self.callState != .refused  && self.callState != .busy) {
-                CallManager.sharedInstance.endedCall(uuid: self.uuid, callState: .ended)
+            if (self.callState != .refused  && self.callState != .busy) {
+                CallManager.sharedInstance.endActiveCall()
             }
             self.send(event: "CLEARING_SESSION", data: [:])
             self.close()
