@@ -440,11 +440,6 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             return
         }
 
-        // Atomic check-and-reserve: if any call slot is already taken (outgoing, ringing,
-        // connecting, or connected), auto-decline this new incoming as busy. PushKit still
-        // requires us to call reportNewIncomingCall once before ending — `failedIncomingCall`
-        // handles that. We use a throwaway UUID so the busy decline never touches the
-        // currentCall slot nor the active call's metaData.
         guard let inUUID = self.reserveCurrentCall() else {
             print("Auto-declining incoming call: SDK is already busy")
             self.extractServerData(callerId: callerId, alertData: alertData) { result in
@@ -457,6 +452,18 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
             }
             return
         }
+
+        self.setCall(
+            CallInfo(
+                callId: callerId,
+                hasVideo: false,
+                callName: callerName,
+                callAvatar: avatarUrl,
+                callType: .INCOMING,
+                callStatus: .incoming
+            ),
+            for: inUUID
+        )
 
         self.metaData = metaData
         self.startIncomingCallTimer(for: inUUID)
@@ -488,17 +495,7 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
                         print("connected from incoming report")
                     }
                     self.postCallStatus(.incoming)
-                    self.setCall(
-                        CallInfo(
-                            callId: callerId,
-                            hasVideo: false,
-                            callName: callerName,
-                            callAvatar: avatarUrl,
-                            callType: .INCOMING,
-                            callStatus: .incoming
-                        ),
-                        for: inUUID
-                    )
+                    
                     SocketSignaling.shared.emit("RINGING_CALL", [:])
                     completion(.success(()))
                 case .failure(let error):
@@ -583,6 +580,10 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     func endActiveCall() {
         let snapshot = calls
+        if snapshot.isEmpty, let uuid = currentCall {
+            endCall(uuid: uuid)
+            return
+        }
         for (uuid, call) in snapshot {
             if (call.callType == .OUTGOING && (call.callStatus == .connecting || call.callStatus == .calling)) {
                 cancelCall(uuid: uuid)
@@ -778,14 +779,15 @@ final class CallManager: NSObject, CallServiceDelegate, CXCallObserverDelegate, 
     
     public func provider(_ provider: CXProvider, perform action: CXAnswerCallAction) {
         cancelIncomingCallTimer(for: action.callUUID)
+
+        self.postCallStatus(.connecting)
+        self.updateCall(uuid: action.callUUID) { $0.callStatus = .connecting }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             if (!self.screenIsShown) {
                 self.showCallScreen(uuid: action.callUUID ,callStatus: "connecting")
             }
         }
-
-        self.postCallStatus(.connecting)
-        self.updateCall(uuid: action.callUUID) { $0.callStatus = .connecting }
 
         self.requestMicrophonePermission { granted in
             if !granted {
