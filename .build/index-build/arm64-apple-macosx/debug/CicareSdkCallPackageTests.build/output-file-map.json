@@ -1,0 +1,12 @@
+{
+  "": {
+    "swift-dependencies": "/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/.build/index-build/arm64-apple-macosx/debug/CicareSdkCallPackageTests.build/master.swiftdeps"
+  },
+  "/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/.build/index-build/arm64-apple-macosx/debug/CicareSdkCallPackageTests.derived/runner.swift": {
+    "dependencies": "/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/.build/index-build/arm64-apple-macosx/debug/CicareSdkCallPackageTests.build/runner.d",
+    "object": "/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/.build/index-build/arm64-apple-macosx/debug/CicareSdkCallPackageTests.build/runner.swift.o",
+    "swiftmodule": "/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/.build/index-build/arm64-apple-macosx/debug/CicareSdkCallPackageTests.build/runner~partial.swiftmodule",
+    "swift-dependencies": "/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/.build/index-build/arm64-apple-macosx/debug/CicareSdkCallPackageTests.build/runner.swiftdeps",
+    "diagnostics": "/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/.build/index-build/arm64-apple-macosx/debug/CicareSdkCallPackageTests.build/runner.dia"
+  }
+}

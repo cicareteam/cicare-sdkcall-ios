@@ -1,0 +1,15 @@
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/CicareSdkCall.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/services/APIService.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/services/CallError.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/services/CallManager.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/services/CallState.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/services/CallStatus.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/services/CryptoKeyManager.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/signaling/SocketSignaling.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/ui/Alert.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/ui/CallScreenView.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/ui/CircleButton.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/ui/MediaXCAssets.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/ui/MultiLayerGradientView.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/Sources/CicareSdkCall/webrtc/WebRTCManager.swift
+/Users/annaselh/PROJECT/Swift/sdk-1.2.1-rc.43/.build/index-build/arm64-apple-macosx/debug/CicareSdkCall.build/DerivedSources/resource_bundle_accessor.swift
